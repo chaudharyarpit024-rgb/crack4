@@ -1,0 +1,193 @@
+{
+  "app_name": "CRACK",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A crisp, frictionless calorie tracker that feels like a premium iOS utility, letting the food photography and data take center stage.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#111827",
+    "surfaceSecondary": "#F3F4F6",
+    "onSurfaceSecondary": "#374151",
+    "surfaceTertiary": "#E5E7EB",
+    "onSurfaceTertiary": "#6B7280",
+    "surfaceInverse": "#1F2937",
+    "onSurfaceInverse": "#F9FAFB",
+    "brand": "#E05D36",
+    "brandPrimary": "#E05D36",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#F4A261",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#FDECE6",
+    "onBrandTertiary": "#9A3B1F",
+    "success": "#22C55E",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F59E0B",
+    "onWarning": "#FFFFFF",
+    "error": "#EF4444",
+    "onError": "#FFFFFF",
+    "info": "#3B82F6",
+    "onInfo": "#FFFFFF",
+    "border": "#E5E7EB",
+    "borderStrong": "#D1D5DB",
+    "divider": "#F3F4F6"
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room. Cards never flush to screen edges; always use 'lg' margin. Ensure sticky bottom FABs have ample bottom padding to clear the home indicator.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use on the sticky bottom tab bar",
+      "Use on the floating action button (Camera)",
+      "Use for the bottom sheet header during AI analysis"
+    ],
+    "dont's": [
+      "Never use on normal list rows or cards",
+      "Do not use on form inputs"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Splash",
+      "purpose": "Brand presentation with the 'CRACK - Track It First' tagline.",
+      "states": {
+        "loading": "Full screen with brand wordmark and tagline, subtle fade in.",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Centered logo and tagline 'Track It First'. For dark mode, use the literal cracked plate image covering the background with a gradient scrim."
+    },
+    {
+      "name": "Login",
+      "purpose": "User authentication via email and password (JWT).",
+      "states": {
+        "loading": "Spinner on primary 'Login' button.",
+        "empty": "N/A",
+        "error": "Toast or inline text above button for auth failures."
+      },
+      "layout": "Standard iOS single-column form. Large inputs with labels above. Primary sticky CTA at the bottom inside KeyboardAvoidingView."
+    },
+    {
+      "name": "Onboarding",
+      "purpose": "Capture user goal (Gain/Lose/Maintain), weight, and height to calculate daily calorie needs.",
+      "states": {
+        "loading": "Calculating daily needs spinner.",
+        "empty": "N/A",
+        "error": "Validation error if fields are skipped."
+      },
+      "layout": "Step-by-step or single scrollable form. Goal selection uses large, touchable cards (selectable with 'brandStrong' border on active). Sticky 'Continue' button."
+    },
+    {
+      "name": "Home Dashboard",
+      "purpose": "Provide at-a-glance calorie status and act as the launchpad for logging food.",
+      "states": {
+        "loading": "Skeleton loader for the calorie ring and food list.",
+        "empty": "Clean illustration (empty plate) stating 'No food logged today' with an arrow pointing to the Camera FAB.",
+        "error": "Error fetching today's log with a Retry button."
+      },
+      "layout": "Header: User name (left) + Avatar (right). Top Section: Large circular progress ring displaying 'Calories eaten / Calorie Goal'. Below the ring, a pill badge indicating 'Deficient', 'Good', or 'Overeaten'. Content: 'You eat today' list - simple rows with Timestamp, Food Name, and Calories. Sticky FAB floating above the tab bar for Camera/Manual entry."
+    },
+    {
+      "name": "Camera / AI Result",
+      "purpose": "Scan food, process via Gemini, and decide whether to eat it.",
+      "states": {
+        "loading": "Full screen camera view -> upon capture, a frosted glass overlay with 'Processing food...' and a spinner.",
+        "empty": "N/A",
+        "error": "Toast if Gemini fails to identify food, with fallback 'Manual Entry' CTA."
+      },
+      "layout": "Camera viewfinder taking up the top 60% of the screen. Upon capture, a bottom sheet slides up displaying: captured image thumbnail, Macro breakdown row (Calories, Fat, Carbs), a Good/Bad status badge, and two large buttons stacked vertically: 'Eating it' (Primary, brandPrimary) and 'Not eating it' (Ghost)."
+    },
+    {
+      "name": "Manual Entry",
+      "purpose": "Fallback for when camera scanning isn't preferred; log food by name and calories.",
+      "states": {
+        "loading": "Button spinner on 'Save'.",
+        "empty": "N/A",
+        "error": "Validation styling for empty required fields."
+      },
+      "layout": "Clean, single-column form with 'Food Name' and 'Calories' inputs. KeyboardAvoidingView with sticky 'Add to Log' CTA."
+    },
+    {
+      "name": "Profile",
+      "purpose": "Manage weight/goal settings and view the 30-day track record.",
+      "states": {
+        "loading": "Skeleton for history list.",
+        "empty": "Empty state for 30-day record if account is new.",
+        "error": "Standard inline error for failed updates."
+      },
+      "layout": "Top section: Inputs for Goal, Weight (kg), and Height (cm) with an 'Update' button. Bottom section: A clean list of the last 30 days (Date + Total Calories + Status badge)."
+    }
+  ],
+  "images": {
+    "onboarding_hero": {
+      "url": "https://images.unsplash.com/photo-1505253716362-afaea1d3d1af?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwyfHxoZWFsdGh5JTIwZm9vZCUyMHNhbGFkJTIwYWVzdGhldGljfGVufDB8fHx8MTc4NTY3MDM5MHww&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1505253716362-afaea1d3d1af?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwyfHxoZWFsdGh5JTIwZm9vZCUyMHNhbGFkJTIwYWVzdGhldGljfGVufDB8fHx8MTc4NTY3MDM5MHww&ixlib=rb-4.1.0&q=85",
+      "alt": "Aesthetic healthy salad in a white bowl"
+    },
+    "splash_dark_backdrop": {
+      "url": "https://images.pexels.com/photos/7140246/pexels-photo-7140246.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "dark": "https://images.pexels.com/photos/7140246/pexels-photo-7140246.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Broken round porcelain plate on black background representing CRACK"
+    },
+    "home_empty_state": {
+      "url": "https://images.unsplash.com/photo-1633856858940-42229cb53dd3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwyfHxlbXB0eSUyMHBsYXRlJTIwbWluaW1hbHxlbnwwfHx8fDE3ODU2NzAzOTB8MA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-12310576/pexels-photo-12310576.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Minimalist empty white plate"
+    }
+  },
+  "haptics": {
+    "primary_button_press": "impactLight",
+    "camera_capture": "impactMedium",
+    "tab_switch": "selection",
+    "goal_card_select": "impactLight",
+    "log_food_success": "notificationSuccess",
+    "status_change": "notificationWarning"
+  },
+  "instructions_to_main_agent": [
+    "Follow the iOS-Native Clean personality. Ensure the app feels highly functional but crisp and bright, focusing on the data and the food.",
+    "Implement a circular progress ring on the Home screen to represent daily calorie intake vs. goal.",
+    "For the camera AI flow: transition smoothly from the camera view to a glassmorphic bottom sheet once Gemini returns the macro breakdown.",
+    "The primary action (Camera / Add Food) must be extremely prominent. Use a sticky FAB sitting above the bottom tab bar.",
+    "Ensure 'Deficient', 'Good', and 'Overeaten' statuses use the respective 'warning', 'success', and 'error' theme colors.",
+    "Incorporate the 'crack' motif subtly, utilizing the dark backdrop image for the splash screen if appropriate, or sticking to a clean logo approach in light mode.",
+    "For data inputs (weight/height), use clean iOS-style form rows."
+  ]
+}
