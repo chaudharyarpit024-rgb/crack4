@@ -20,6 +20,7 @@ type LogItem = {
   id: string;
   food_name: string;
   calories: number;
+  protein_g?: number;
   timestamp: string;
   source: string;
 };
@@ -67,6 +68,7 @@ export default function Home() {
   const [me, setMe] = useState<User | null>(null);
   const [items, setItems] = useState<LogItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [protein, setProtein] = useState(0);
   const [sub, setSub] = useState<Sub | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -75,12 +77,13 @@ export default function Home() {
     try {
       const [u, t, s] = await Promise.all([
         api<User>("/auth/me"),
-        api<{ items: LogItem[]; total_calories: number }>("/food/today"),
+        api<{ items: LogItem[]; total_calories: number; total_protein_g: number }>("/food/today"),
         api<Sub>("/subscription/me"),
       ]);
       setMe(u);
       setItems(t.items);
       setTotal(t.total_calories);
+      setProtein(t.total_protein_g || 0);
       setSub(s);
     } catch (e) {
       // token invalid
@@ -159,8 +162,15 @@ export default function Home() {
         ) : null}
 
         <CalorieRing eaten={total} target={target} />
-        <View style={{ alignItems: "center", marginTop: spacing.md }}>
-          <StatusBadge status={status} />
+        <View style={styles.macroPillRow} testID="today-macros">
+          <View style={styles.macroPill}>
+            <Ionicons name="fitness" size={14} color={colors.brand} />
+            <Text style={styles.macroPillLabel}>Protein</Text>
+            <Text style={styles.macroPillVal} testID="today-protein">{Math.round(protein)}g</Text>
+          </View>
+          <View style={{ alignItems: "center" }}>
+            <StatusBadge status={status} />
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -183,9 +193,19 @@ export default function Home() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.logName} numberOfLines={1}>{it.food_name}</Text>
-                  <Text style={styles.logTime}>
-                    {new Date(it.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </Text>
+                  <View style={styles.logMetaRow}>
+                    <Text style={styles.logTime}>
+                      {new Date(it.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                    {it.protein_g ? (
+                      <>
+                        <Text style={styles.logDot}>·</Text>
+                        <Text style={styles.logProtein} testID={`log-protein-${it.id}`}>
+                          {Math.round(it.protein_g)}g protein
+                        </Text>
+                      </>
+                    ) : null}
+                  </View>
                 </View>
                 <Text style={styles.logCal}>{Math.round(it.calories)} kcal</Text>
                 <Pressable testID={`delete-${it.id}`} onPress={() => del(it.id)} style={styles.del}>
@@ -271,6 +291,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   ringFill: { height: "100%", backgroundColor: colors.brand, borderRadius: radius.pill },
+  macroPillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.md,
+  },
+  macroPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface2,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    gap: 6,
+  },
+  macroPillLabel: { fontSize: 12, color: colors.muted, fontWeight: "600" },
+  macroPillVal: { fontSize: 14, color: colors.onSurface, fontWeight: "800" },
   badge: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: radius.pill },
   badgeTxt: { fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
   section: { marginTop: spacing.xl },
@@ -308,7 +345,10 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   logName: { fontSize: 15, fontWeight: "600", color: colors.onSurface },
-  logTime: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  logMetaRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
+  logTime: { fontSize: 12, color: colors.muted },
+  logDot: { fontSize: 12, color: colors.muted, marginHorizontal: 6 },
+  logProtein: { fontSize: 12, color: colors.brand, fontWeight: "600" },
   logCal: { fontSize: 14, fontWeight: "700", color: colors.brand, marginRight: spacing.sm },
   del: { padding: 4 },
   fabWrap: {

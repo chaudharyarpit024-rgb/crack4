@@ -177,6 +177,26 @@ export default function Profile() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
 
+        <View style={styles.legalRow}>
+          <Pressable
+            testID="link-terms"
+            onPress={() => router.push("/terms")}
+            style={styles.legalItem}
+          >
+            <Ionicons name="document-text-outline" size={16} color={colors.muted} />
+            <Text style={styles.legalTxt}>Terms of Service</Text>
+          </Pressable>
+          <View style={styles.legalDivider} />
+          <Pressable
+            testID="link-privacy"
+            onPress={() => router.push("/privacy")}
+            style={styles.legalItem}
+          >
+            <Ionicons name="shield-checkmark-outline" size={16} color={colors.muted} />
+            <Text style={styles.legalTxt}>Privacy Policy</Text>
+          </Pressable>
+        </View>
+
         <Text style={styles.section}>Last 30 days</Text>
         {days.length === 0 ? (
           <View style={styles.empty}>
@@ -284,6 +304,23 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   subRowTxt: { flex: 1, color: colors.brand, fontWeight: "700", fontSize: 15 },
+  legalRow: {
+    flexDirection: "row",
+    marginTop: spacing.md,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  legalItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.sm,
+    gap: 6,
+  },
+  legalDivider: { width: 1, backgroundColor: colors.border, marginVertical: 4 },
+  legalTxt: { fontSize: 13, color: colors.onSurface2, fontWeight: "600" },
   empty: { padding: spacing.xl, backgroundColor: colors.surface2, borderRadius: radius.lg, alignItems: "center" },
   emptyTxt: { color: colors.muted },
   dayRow: {

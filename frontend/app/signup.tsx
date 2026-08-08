@@ -112,6 +112,13 @@ export default function Signup() {
             )}
           </Pressable>
 
+          <Text style={styles.legal} testID="signup-legal">
+            By creating an account you agree to our{" "}
+            <Text style={styles.legalLink} onPress={() => router.push("/terms")}>Terms</Text>
+            {" "}and{" "}
+            <Text style={styles.legalLink} onPress={() => router.push("/privacy")}>Privacy Policy</Text>.
+          </Text>
+
           <Pressable
             testID="go-login-link"
             onPress={() => router.replace("/login")}
@@ -161,5 +168,13 @@ const styles = StyleSheet.create({
   },
   btnTxt: { color: colors.onBrand, fontSize: 16, fontWeight: "700" },
   err: { color: colors.error, marginTop: spacing.md, fontSize: 13 },
+  legal: {
+    marginTop: spacing.lg,
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  legalLink: { color: colors.brand, fontWeight: "700", textDecorationLine: "underline" },
   link: { textAlign: "center", color: colors.muted, fontSize: 14 },
 });

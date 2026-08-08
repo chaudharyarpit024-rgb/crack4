@@ -163,6 +163,42 @@ export default function Subscribe() {
           </Pressable>
         )}
 
+        <View style={styles.paymentsBox} testID="payment-options">
+          <Text style={styles.paymentsTitle}>Accepted payment methods</Text>
+          <View style={styles.paymentsRow}>
+            <View style={styles.paymentChip}>
+              <Ionicons name="phone-portrait" size={14} color={colors.brand} />
+              <Text style={styles.paymentChipTxt}>UPI Autopay</Text>
+            </View>
+            <View style={styles.paymentChip}>
+              <Ionicons name="card" size={14} color={colors.brand} />
+              <Text style={styles.paymentChipTxt}>Debit / Credit</Text>
+            </View>
+            <View style={styles.paymentChip}>
+              <Ionicons name="business" size={14} color={colors.brand} />
+              <Text style={styles.paymentChipTxt}>Net Banking</Text>
+            </View>
+            <View style={styles.paymentChip}>
+              <Ionicons name="wallet" size={14} color={colors.brand} />
+              <Text style={styles.paymentChipTxt}>Wallets</Text>
+            </View>
+          </View>
+          <Text style={styles.paymentsFoot}>
+            Payments are securely processed by Razorpay. You can cancel your subscription anytime from
+            Profile → Manage subscription.
+          </Text>
+        </View>
+
+        <View style={styles.legalLinks}>
+          <Pressable testID="sub-terms" onPress={() => router.push("/terms")}>
+            <Text style={styles.legalLinkTxt}>Terms of Service</Text>
+          </Pressable>
+          <Text style={styles.legalSep}>·</Text>
+          <Pressable testID="sub-privacy" onPress={() => router.push("/privacy")}>
+            <Text style={styles.legalLinkTxt}>Privacy Policy</Text>
+          </Pressable>
+        </View>
+
         {!sub?.rzp_configured ? (
           <Text style={styles.note} testID="rzp-note">
             Payment gateway not yet configured. Ask the admin to add Razorpay keys in{" "}
@@ -279,6 +315,41 @@ const styles = StyleSheet.create({
   },
   activeTxt: { color: colors.success, fontWeight: "800", fontSize: 15 },
   err: { color: colors.error, marginTop: spacing.md, fontSize: 13 },
+  paymentsBox: {
+    marginTop: spacing.xl,
+    padding: spacing.lg,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.md,
+  },
+  paymentsTitle: {
+    fontSize: 12,
+    color: colors.muted,
+    textTransform: "uppercase",
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    marginBottom: spacing.sm,
+  },
+  paymentsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  paymentChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    gap: 6,
+  },
+  paymentChipTxt: { fontSize: 12, color: colors.onSurface2, fontWeight: "600" },
+  paymentsFoot: { marginTop: spacing.md, fontSize: 12, color: colors.muted, lineHeight: 18 },
+  legalLinks: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.lg,
+    gap: 8,
+  },
+  legalLinkTxt: { fontSize: 13, color: colors.muted, textDecorationLine: "underline" },
+  legalSep: { color: colors.muted },
   note: {
     marginTop: spacing.lg,
     fontSize: 12,

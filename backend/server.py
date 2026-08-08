@@ -165,15 +165,18 @@ def sub_public(sub: dict) -> dict:
     now = datetime.now(timezone.utc)
     days_left = 0
     trial_active = False
+    paid_active = status in {"authenticated", "active"}
     if trial_ends_at:
         try:
             end = datetime.fromisoformat(trial_ends_at)
             if end > now:
-                trial_active = status == "trialing"
-                days_left = max(0, (end - now).days + (1 if (end - now).seconds > 0 else 0))
+                # Trial is active until end_at, regardless of RZP status
+                # (as long as user hasn't been marked paid_active)
+                trial_active = not paid_active
+                delta = end - now
+                days_left = max(0, delta.days + (1 if delta.seconds > 0 else 0))
         except Exception:
             pass
-    paid_active = status in {"authenticated", "active"}
     active = paid_active or trial_active
     return {
         "status": status,
@@ -308,6 +311,7 @@ async def create_checkout(user=Depends(current_user)):
     sub = await razorpay_req("POST", "/v1/subscriptions", json={
         "plan_id": RZP_PLAN_ID,
         "quantity": 1,
+        "total_count": 12,  # 12 monthly cycles; extend via renewals
         "start_at": int(trial_end.timestamp()),
         "customer_notify": 1,
         "notes": {"user_id": user["id"]},
@@ -522,7 +526,16 @@ async def today_logs(user=Depends(current_user)):
     ).sort("timestamp", -1)
     items = await cursor.to_list(500)
     total = sum(i.get("calories", 0) for i in items)
-    return {"items": items, "total_calories": total}
+    total_protein = sum(i.get("protein_g", 0) or 0 for i in items)
+    total_fat = sum(i.get("fat_g", 0) or 0 for i in items)
+    total_carbs = sum(i.get("carbs_g", 0) or 0 for i in items)
+    return {
+        "items": items,
+        "total_calories": total,
+        "total_protein_g": total_protein,
+        "total_fat_g": total_fat,
+        "total_carbs_g": total_carbs,
+    }
 
 
 @api.get("/food/history")
