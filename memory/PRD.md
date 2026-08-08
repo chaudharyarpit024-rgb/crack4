@@ -29,8 +29,16 @@ Simple, lightweight mobile diet tracker. Snap a photo of your food, get AI-estim
 ## Screens
 `/` splash → gate • `/login` • `/signup` • `/onboarding` • `/(tabs)` home + profile • `/camera` (with gallery button) • `/analyze` • `/manual` • `/subscribe` • `/terms` • `/privacy`
 
+
+## Security posture (post-audit)
+- **XSS-hardened** `/api/subscription/checkout-page` — subscription_id validated against `^sub_[A-Za-z0-9]{6,32}$`, DB-existence checked, JS output escaped and CSP + `X-Content-Type-Options: nosniff` set.
+- **Strong secrets** — `JWT_SECRET` = 48-byte urlsafe random; boot fails on placeholder/<32 chars; JWT TTL reduced 30d → 7d.
+- **Webhook fail-closed** — `/api/subscription/webhook` returns 503 if the secret is placeholder; forged signatures → 400; unique index on `rzp_events.event_id` for idempotency.
+- **Input bounds** — `image_base64` capped at 8 MB body / 5 MB decoded (413); `food_name ≤ 120`, `calories 0..20000`, `image_b64 ≤ 250 KB`; passwords ≥ 8 chars.
+- **Error hygiene** — Gemini failures return generic 502 (no provider details).
+
 ## Razorpay (LIVE keys configured)
 - `RAZORPAY_KEY_ID=rzp_test_TNKjZ4cPbJPYfp`
 - `RAZORPAY_KEY_SECRET` set in backend/.env
 - `RAZORPAY_PLAN_ID=plan_TNKpaaAmmoDt7u` (₹39/month, INR)
-- `RAZORPAY_WEBHOOK_SECRET` still placeholder — status updates rely on callback + `GET /subscription/me` refresh until admin adds a webhook secret + wires the Razorpay webhook URL.
+- `RAZORPAY_WEBHOOK_SECRET` is now a strong random (real). Add a webhook in Razorpay Dashboard → Webhooks pointing to `https://nutrition-simple-7.preview.emergentagent.com/api/subscription/webhook` and paste the SAME value shown in `backend/.env` when creating the webhook so signatures verify.
