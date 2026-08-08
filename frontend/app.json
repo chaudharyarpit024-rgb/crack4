@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.nutritionsimple.xmb3cy"
+      "bundleIdentifier": "com.emergent.nutritionsimple.xmb3cy",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scan food to estimate calories"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +21,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.nutritionsimple.xmb3cy"
+      "package": "com.emergent.nutritionsimple.xmb3cy",
+      "permissions": ["android.permission.CAMERA"]
     },
     "web": {
       "bundler": "metro",
@@ -33,7 +37,14 @@
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#FFFFFF"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan food to estimate calories",
+          "recordAudioAndroid": false
         }
       ]
     ],
