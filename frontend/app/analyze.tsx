@@ -45,7 +45,12 @@ export default function Analyze() {
         });
         setResult(r);
       } catch (e: any) {
-        setErr(e.message || "Analysis failed");
+        const msg = e.message || "Analysis failed";
+        if (msg.toLowerCase().includes("subscription") || msg.includes("402")) {
+          router.replace({ pathname: "/subscribe", params: { reason: "trial-ended" } });
+          return;
+        }
+        setErr(msg);
       }
     })();
   }, [b64]);

@@ -24,6 +24,14 @@ type LogItem = {
   source: string;
 };
 
+type Sub = {
+  active: boolean;
+  trial_active: boolean;
+  paid_active: boolean;
+  days_left: number;
+  status: string;
+};
+
 function StatusBadge({ status }: { status: "deficit" | "good" | "over" }) {
   const map = {
     deficit: { bg: "#FEF3C7", fg: colors.warning, label: "Under target" },
@@ -59,18 +67,21 @@ export default function Home() {
   const [me, setMe] = useState<User | null>(null);
   const [items, setItems] = useState<LogItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [sub, setSub] = useState<Sub | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [u, t] = await Promise.all([
+      const [u, t, s] = await Promise.all([
         api<User>("/auth/me"),
         api<{ items: LogItem[]; total_calories: number }>("/food/today"),
+        api<Sub>("/subscription/me"),
       ]);
       setMe(u);
       setItems(t.items);
       setTotal(t.total_calories);
+      setSub(s);
     } catch (e) {
       // token invalid
       router.replace("/login");
@@ -127,6 +138,26 @@ export default function Home() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
       >
+        {sub && (sub.trial_active || !sub.paid_active) ? (
+          <Pressable
+            testID="trial-banner"
+            onPress={() => router.push("/subscribe")}
+            style={styles.trialBanner}
+          >
+            <Ionicons
+              name={sub.trial_active ? "gift" : "lock-closed"}
+              size={16}
+              color={colors.brand}
+            />
+            <Text style={styles.trialTxt}>
+              {sub.trial_active
+                ? `Free trial · ${sub.days_left} day${sub.days_left === 1 ? "" : "s"} left`
+                : "Trial ended · Subscribe to unlock AI scan"}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.brand} />
+          </Pressable>
+        ) : null}
+
         <CalorieRing eaten={total} target={target} />
         <View style={{ alignItems: "center", marginTop: spacing.md }}>
           <StatusBadge status={status} />
@@ -184,7 +215,11 @@ export default function Home() {
           testID="camera-fab"
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            router.push("/camera");
+            if (sub && !sub.active) {
+              router.push({ pathname: "/subscribe", params: { reason: "trial-ended" } });
+            } else {
+              router.push("/camera");
+            }
           }}
           style={styles.fabPrimary}
         >
@@ -300,6 +335,18 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   fabSecondaryTxt: { color: colors.brand, fontWeight: "700", marginLeft: 6 },
+  trialBanner: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.brandSoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    gap: 8,
+    marginBottom: spacing.sm,
+  },
+  trialTxt: { flex: 1, color: colors.brand, fontWeight: "700", fontSize: 13 },
   fabPrimary: {
     width: 60,
     height: 60,

@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.nutritionsimple.xmb3cy",
       "infoPlist": {
-        "NSCameraUsageDescription": "Scan food to estimate calories"
+        "NSCameraUsageDescription": "Scan food to estimate calories",
+        "NSPhotoLibraryUsageDescription": "Import food photos to estimate calories"
       }
     },
     "android": {
@@ -22,7 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.nutritionsimple.xmb3cy",
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": ["android.permission.CAMERA", "android.permission.READ_MEDIA_IMAGES"]
     },
     "web": {
       "bundler": "metro",
@@ -45,6 +46,12 @@
         {
           "cameraPermission": "Scan food to estimate calories",
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Import food photos to estimate calories"
         }
       ]
     ],

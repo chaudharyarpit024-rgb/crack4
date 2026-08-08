@@ -13,21 +13,25 @@ Simple, lightweight mobile diet tracker. Snap a photo of your food, get AI-estim
 ## Features
 1. **Auth** — Signup / Login (email + password, JWT persisted via SecureStore)
 2. **Onboarding** — Goal (Gain/Lose/Maintain) + weight (kg) + height (cm) + optional age/gender → Mifflin-St Jeor daily calorie target
-3. **Home** — Calorie progress ring, deficit/on-track/overeaten status badge, today's meals list, delete entries
-4. **Camera flow** — Scan food → Gemini analysis → verdict (good/ok/bad) + macros → "Eating it" / "Not eating it"
-5. **Manual entry** — Food name + calories (lightweight fallback)
-6. **Profile** — Update goal/weight/height (recalculates target), last 30-day track record
+3. **Home** — Trial banner (X days left), Calorie progress ring, deficit/on-track/overeaten status badge, today's meals list, delete entries
+4. **Camera flow** — Scan food (in-app camera) OR pick from gallery → Gemini analysis → verdict (good/ok/bad) + macros → "Eating it" / "Not eating it"
+5. **Manual entry** — Food name + calories (lightweight fallback, always free)
+6. **Profile** — Update goal/weight/height (recalculates target), Manage subscription link, last 30-day track record
+7. **Subscription** — Auto-provisioned 10-day free trial on signup. ₹39/month (paise: 3900) Razorpay autopay after trial. AI camera analysis is gated when subscription expires (soft paywall — manual entry still works). Fully-implemented Razorpay flow: `POST /api/subscription/checkout` → hosted checkout page → `POST /api/subscription/callback` (HMAC-verified) → `POST /api/subscription/webhook` (raw-body HMAC verify, idempotent via event_id index).
 
 ## Backend endpoints
-- `POST /api/auth/signup` `{email, password, name?}` → `{token, user}`
-- `POST /api/auth/login` `{email, password}` → `{token, user}`
-- `GET  /api/auth/me` → user
-- `PUT  /api/profile` `{goal?, weight_kg?, height_cm?, age?, gender?}` → user (recalculates daily_target)
-- `POST /api/food/analyze` `{image_base64}` → `{food_name, calories, fat_g, carbs_g, protein_g, verdict, reason}`
-- `POST /api/food/log` `{food_name, calories, fat_g?, carbs_g?, protein_g?, source}` → entry
-- `GET  /api/food/today` → `{items[], total_calories}`
-- `GET  /api/food/history?days=30` → `{items[], days[]}`
-- `DELETE /api/food/{id}` → `{ok}`
+- Auth: `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/auth/me`
+- Profile: `PUT /api/profile`
+- Food: `POST /api/food/analyze` (requires active subscription/trial), `POST /api/food/log`, `GET /api/food/today`, `GET /api/food/history?days=30`, `DELETE /api/food/{id}`
+- Subscription: `GET /api/subscription/me`, `POST /api/subscription/checkout`, `GET /api/subscription/checkout-page?subscription_id=...` (HTML), `POST /api/subscription/callback` (form), `POST /api/subscription/webhook` (raw)
 
 ## Screens
-`/` splash → gate • `/login` • `/signup` • `/onboarding` • `/(tabs)` home + profile • `/camera` • `/analyze` • `/manual`
+`/` splash → gate • `/login` • `/signup` • `/onboarding` • `/(tabs)` home + profile • `/camera` (with gallery button) • `/analyze` • `/manual` • `/subscribe`
+
+## Setup for real payments
+Add to `backend/.env` (replace placeholders):
+- `RAZORPAY_KEY_ID` (rzp_test_... from dashboard.razorpay.com)
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
+- `RAZORPAY_PLAN_ID` (create ₹39 monthly plan via `POST /v1/plans`, amount=3900, INR, period=monthly)
+Configure webhook in Razorpay dashboard to `<PUBLIC_API_URL>/api/subscription/webhook` and subscribe to: `subscription.authenticated`, `subscription.activated`, `subscription.charged`, `subscription.pending`, `subscription.halted`, `subscription.cancelled`, `subscription.completed`.

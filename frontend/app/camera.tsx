@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform } from "
 import { useRouter } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +16,51 @@ export default function CameraScreen() {
   const [busy, setBusy] = useState(false);
   const [facing, setFacing] = useState<"back" | "front">("back");
 
+  const goAnalyze = async (uri: string) => {
+    const manipulated = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 800 } }],
+      { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+    );
+    router.replace({ pathname: "/analyze", params: { b64: manipulated.base64 as string } });
+  };
+
+  const capture = async () => {
+    if (busy || !camRef.current) return;
+    setBusy(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const photo: any = await camRef.current.takePictureAsync({
+        quality: 0.5,
+        base64: false,
+        skipProcessing: true,
+      });
+      if (!photo?.uri) throw new Error("Capture failed");
+      await goAnalyze(photo.uri);
+    } catch {
+      setBusy(false);
+    }
+  };
+
+  const pickGallery = async () => {
+    if (busy) return;
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.6,
+        allowsEditing: false,
+      });
+      if (res.canceled || !res.assets?.[0]?.uri) return;
+      setBusy(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await goAnalyze(res.assets[0].uri);
+    } catch {
+      setBusy(false);
+    }
+  };
+
   if (!perm) return <View style={{ flex: 1, backgroundColor: "#000" }} />;
   if (!perm.granted) {
     return (
@@ -25,36 +71,15 @@ export default function CameraScreen() {
         <Pressable testID="grant-cam" onPress={requestPerm} style={styles.btn}>
           <Text style={styles.btnTxt}>Grant permission</Text>
         </Pressable>
+        <Pressable testID="pick-gallery-noperm" onPress={pickGallery} style={styles.btnGhost}>
+          <Text style={styles.btnGhostTxt}>Or pick from gallery</Text>
+        </Pressable>
         <Pressable onPress={() => router.back()} style={{ marginTop: spacing.lg }}>
           <Text style={{ color: colors.muted }}>Cancel</Text>
         </Pressable>
       </SafeAreaView>
     );
   }
-
-  const capture = async () => {
-    if (busy || !camRef.current) return;
-    setBusy(true);
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      // On web, expo-camera takePictureAsync may not be reliable; guard.
-      const photo: any = await camRef.current.takePictureAsync({
-        quality: 0.5,
-        base64: false,
-        skipProcessing: true,
-      });
-      if (!photo?.uri) throw new Error("Capture failed");
-      const manipulated = await ImageManipulator.manipulateAsync(
-        photo.uri,
-        [{ resize: { width: 800 } }],
-        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-      );
-      const b64 = manipulated.base64 as string;
-      router.replace({ pathname: "/analyze", params: { b64 } });
-    } catch (e) {
-      setBusy(false);
-    }
-  };
 
   return (
     <View style={styles.wrap}>
@@ -68,7 +93,7 @@ export default function CameraScreen() {
           <Text style={styles.topTitle}>Scan food</Text>
           <Pressable
             testID="cam-flip"
-            onPress={() => setFacing(f => (f === "back" ? "front" : "back"))}
+            onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
             style={styles.iconBtn}
           >
             <Ionicons name="camera-reverse" size={24} color="#fff" />
@@ -80,7 +105,17 @@ export default function CameraScreen() {
           <Text style={styles.hint}>Center the food inside the frame</Text>
         </View>
 
-        <View style={styles.shutterWrap}>
+        <View style={styles.bottomBar}>
+          <Pressable
+            testID="pick-gallery-btn"
+            onPress={pickGallery}
+            disabled={busy}
+            style={[styles.sideBtn, busy && { opacity: 0.5 }]}
+          >
+            <Ionicons name="images" size={22} color="#fff" />
+            <Text style={styles.sideTxt}>Gallery</Text>
+          </Pressable>
+
           <Pressable
             testID="shutter-btn"
             onPress={capture}
@@ -93,6 +128,11 @@ export default function CameraScreen() {
               <View style={styles.shutterInner} />
             )}
           </Pressable>
+
+          <View style={styles.sideBtn}>
+            <View style={{ width: 22, height: 22 }} />
+            <Text style={[styles.sideTxt, { opacity: 0 }]}>Gallery</Text>
+          </View>
         </View>
       </SafeAreaView>
     </View>
@@ -136,7 +176,19 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.pill,
   },
-  shutterWrap: { alignItems: "center", paddingBottom: spacing.xl },
+  bottomBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
+  },
+  sideBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 72,
+  },
+  sideTxt: { color: "#fff", fontSize: 11, marginTop: 4, fontWeight: "600" },
   shutter: {
     width: 80,
     height: 80,
@@ -153,7 +205,13 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: colors.brand,
   },
-  permWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, backgroundColor: colors.surface },
+  permWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+    backgroundColor: colors.surface,
+  },
   permTitle: { fontSize: 20, fontWeight: "800", color: colors.onSurface, marginTop: spacing.lg },
   permSub: { fontSize: 14, color: colors.muted, marginTop: spacing.xs, marginBottom: spacing.xl },
   btn: {
@@ -163,4 +221,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   btnTxt: { color: colors.onBrand, fontSize: 16, fontWeight: "700" },
+  btnGhost: { marginTop: spacing.md, paddingVertical: 12, paddingHorizontal: spacing.lg },
+  btnGhostTxt: { color: colors.brand, fontSize: 14, fontWeight: "700" },
 });

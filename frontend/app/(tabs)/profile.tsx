@@ -167,6 +167,16 @@ export default function Profile() {
           )}
         </Pressable>
 
+        <Pressable
+          testID="manage-subscription"
+          onPress={() => router.push("/subscribe")}
+          style={styles.subRow}
+        >
+          <Ionicons name="star" size={18} color={colors.brand} />
+          <Text style={styles.subRowTxt}>Manage subscription</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+
         <Text style={styles.section}>Last 30 days</Text>
         {days.length === 0 ? (
           <View style={styles.empty}>
@@ -264,6 +274,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   btnTxt: { color: colors.onBrand, fontSize: 16, fontWeight: "700" },
+  subRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.lg,
+    backgroundColor: colors.brandSoft,
+    borderRadius: radius.md,
+    marginTop: spacing.xl,
+    gap: spacing.md,
+  },
+  subRowTxt: { flex: 1, color: colors.brand, fontWeight: "700", fontSize: 15 },
   empty: { padding: spacing.xl, backgroundColor: colors.surface2, borderRadius: radius.lg, alignItems: "center" },
   emptyTxt: { color: colors.muted },
   dayRow: {

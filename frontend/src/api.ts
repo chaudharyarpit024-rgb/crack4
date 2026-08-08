@@ -60,7 +60,9 @@ export async function api<T = any>(
   }
   if (!res.ok) {
     const msg = (data && (data.detail || data.message)) || `Request failed (${res.status})`;
-    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    const err = new Error(typeof msg === "string" ? msg : JSON.stringify(msg)) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
   }
   return data as T;
 }
