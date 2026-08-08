@@ -1,0 +1,44 @@
+{
+  "summary": "Security audit remediation verified. 53/53 backend tests PASS (previous 24 regression + 29 new security assertions). All four SEC findings are properly remediated. SEC-001: /api/subscription/checkout-page rejects all 9 malformed subscription_id payloads with 400 (URL-encoded </script>, raw </script>, path traversal sub_../../etc, quote-break sub_' onerror=, empty, non-ascii, wrong-case SUB_, too-long sub_A*33, too-short sub_ABCDE); valid-shape-but-missing returns 404; on a real DB-persisted sub_id, response is 200 HTML with CSP delivered via <meta http-equiv=\"Content-Security-Policy\"> containing checkout.razorpay.com, X-Content-Type-Options=nosniff, and the subscription_id is JSON-quoted inside the JS block; no <script>alert</script> reflection. SEC-002: JWT_SECRET is 64 chars of urlsafe random (not placeholder). Tokens hand-signed with weak secrets (placeholder, secret, changeme, dev-secret, crack-secret) return 401. Fresh signup token works on /auth/me. Existing test1@example.com/secret123 login re-issues a working token. server.py raises RuntimeError at import when JWT_SECRET is placeholder or <32 chars (verified via direct import). SEC-003: RAZORPAY_WEBHOOK_SECRET is 64 chars random (not placeholder). Forged and missing signatures return 400. rzp_events has a unique index on event_id (verified via MongoClient.index_information). SEC-004: /food/analyze returns 422 for image_base64 > 8MB (Pydantic max_length), 413 for base64 that decodes to > 5MB (in-code MAX_IMAGE_BYTES). Generic Gemini error path returns 502 with 'AI analysis failed' and never leaks 'gemini/google/traceback/api key/vertex'. /food/log returns 422 for food_name>120 chars, calories>20000, calories<0, image_b64>250000 chars; valid small payload accepts. New: /auth/signup returns 422 for 7-char password, 200 for 8-char. Regression: full existing suite passes (auth, profile, food CRUD, /subscription/me trial, live Razorpay checkout, idempotency, expired-trial 402 paywall, /food/today macro totals, webhook/callback HMAC 400, IDOR — user B cannot delete user A's food log).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/subscription/checkout-page", "issue": "CSP is delivered only via <meta http-equiv> inside HTML, not as a Content-Security-Policy response header. <meta> CSP is honored by browsers but has known limitations (no report-uri, no frame-ancestors). Recommend adding CSP as an actual HTTP response header for defense-in-depth. Current placement still mitigates SEC-001."},
+      {"endpoint": "POST /api/subscription/checkout", "issue": "Idempotency whitelist checks status in {authenticated, active, pending, created}. If Razorpay ever returns a status outside this set (e.g. 'halted'), a duplicate subscription would be created. Consider gating solely on razorpay_subscription_id existence. Carry-over from iteration 2."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_subscription.py",
+    "/app/backend/tests/test_security.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional, defense-in-depth) Add Content-Security-Policy as an HTTP response header on GET /api/subscription/checkout-page in addition to the current <meta> tag — some CSP directives (frame-ancestors, report-to) are ignored when delivered via <meta>.",
+    "(Optional) Tighten /subscription/checkout idempotency to gate on razorpay_subscription_id existence rather than status whitelist."
+  ],
+  "critical_code_review_comments": [
+    "SEC-001 fix is layered: (1) RZP_ID_RE allowlist ^sub_[A-Za-z0-9]{6,32}$ rejects all XSS payloads at the boundary; (2) DB lookup makes ID enumeration return 404; (3) js_str() JSON-encodes values and rewrites </->\\/ for defense-in-depth. Even without the escape, alphanumeric-only inputs cannot break out of a JSON string literal. Robust.",
+    "SEC-002 boot-guard (server.py:34-35) fires on module import — a placeholder or <32-char JWT_SECRET raises RuntimeError before FastAPI starts. Verified live.",
+    "SEC-003 webhook has fail-closed 503 when RZP_WEBHOOK_LIVE is false (server.py:439-440) — good. hmac.compare_digest used for constant-time compare. rzp_events unique index created at startup (server.py:635) with try/except so a duplicate event_id insert raises and the handler returns {'ok': True} (idempotent replay).",
+    "SEC-004: Pydantic Field(max_length=8*1024*1024) on image_base64 provides fast rejection before body parse. The (len*3)//4 approx decoded-size check (server.py:502-506) uses correct base64 arithmetic. Generic 502 error message replaces provider-specific detail. FoodLogBody has proper bounded fields.",
+    "server.py is 643 lines — still under 700 but growing. When adding webhook dunning or refund flows, split into routers/{auth,subscription,food}.py.",
+    "One test data-quality note (fixed): backend_test.py::TestAuth::test_signup_duplicate_email_rejected previously sent password='x' which now returns 422 (Pydantic) before reaching the duplicate-email 400 branch — I updated the test to use 'secret123' so it exercises the intended code path."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_security.py (NEW — 29 assertions covering SEC-001..004 + signup password policy)",
+    "/app/backend/tests/backend_test.py (fixed duplicate-signup test to use a valid-length password now that min_length=8 is enforced)"
+  ],
+  "success_rate": {"backend": "100% (53/53)", "frontend": "not tested (backend-only iteration)"},
+  "seed_data_creation": "Per pytest run: (a) one 'qa+sec_<ts>@example.com' user + one live Razorpay test subscription created via /subscription/checkout (needed to test SEC-001 valid-sub path); (b) qa+sub_<ts>, qa+<ts>, qa+shortpw_<ts>, qa+eightpw_<ts> signups from existing suites. All safe (test mode, no charge). rzp_events index unchanged.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run: `python -m pytest backend/tests/ -v` from /app. pytest.ini pins -n 2 --dist loadscope. test_security.py loads both /app/backend/.env and /app/frontend/.env for MONGO_URL, JWT_SECRET, and EXPO_PUBLIC_BACKEND_URL. If Razorpay test plan_id is revoked, TestSec001CheckoutPageXSS::test_valid_sub_returns_html_with_csp_and_no_reflected_close_script and TestCheckoutLive::* will 502 (server logs 'Razorpay POST /v1/subscriptions failed'). The CSP is currently delivered via <meta http-equiv> inside HTML (not response header) — test tolerates both; if main agent switches to HTTP header, the assertion still passes. Note: /app/backend/pytest.ini requires exactly -n 2 --dist loadscope; DO NOT modify. Serial run: `python -m pytest ... -n 0`.",
+  "rca_of_issue": "No functional bugs. Two minor security-hygiene follow-ups (CSP HTTP header, checkout idempotency gate) documented above."
+}

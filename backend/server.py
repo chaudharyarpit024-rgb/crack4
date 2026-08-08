@@ -28,7 +28,15 @@ DB_NAME = os.environ["DB_NAME"]
 EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGO = "HS256"
-JWT_TTL_DAYS = 30
+JWT_TTL_DAYS = 7
+
+# Fail fast on weak/placeholder JWT secret
+if not JWT_SECRET or len(JWT_SECRET) < 32 or "placeholder" in JWT_SECRET.lower():
+    raise RuntimeError("JWT_SECRET must be a strong random value of >= 32 chars")
+
+# Subscription ID must look like a Razorpay ID (defensive against reflected XSS)
+RZP_ID_RE = re.compile(r"^sub_[A-Za-z0-9]{6,32}$")
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB decoded
 
 # Razorpay
 RZP_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
@@ -40,6 +48,7 @@ MOBILE_RETURN_URL = os.environ.get("MOBILE_RETURN_URL", "crack://razorpay-comple
 SUB_AMOUNT_PAISE = int(os.environ.get("SUBSCRIPTION_AMOUNT_PAISE", 3900))
 TRIAL_DAYS = int(os.environ.get("SUBSCRIPTION_TRIAL_DAYS", 10))
 RZP_LIVE = bool(RZP_KEY_ID) and not RZP_KEY_ID.endswith("placeholder")
+RZP_WEBHOOK_LIVE = bool(RZP_WEBHOOK_SECRET) and "placeholder" not in RZP_WEBHOOK_SECRET.lower()
 
 
 client = AsyncIOMotorClient(MONGO_URL)
@@ -55,13 +64,13 @@ logger = logging.getLogger("crack")
 # ---------- Models ----------
 class SignupBody(BaseModel):
     email: EmailStr
-    password: str
-    name: Optional[str] = None
+    password: str = Field(min_length=8, max_length=128)
+    name: Optional[str] = Field(default=None, max_length=100)
 
 
 class LoginBody(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=1, max_length=128)
 
 
 class ProfileBody(BaseModel):
@@ -74,17 +83,17 @@ class ProfileBody(BaseModel):
 
 
 class FoodLogBody(BaseModel):
-    food_name: str
-    calories: float
-    fat_g: Optional[float] = 0
-    carbs_g: Optional[float] = 0
-    protein_g: Optional[float] = 0
+    food_name: str = Field(min_length=1, max_length=120)
+    calories: float = Field(ge=0, le=20000)
+    fat_g: Optional[float] = Field(default=0, ge=0, le=1000)
+    carbs_g: Optional[float] = Field(default=0, ge=0, le=1000)
+    protein_g: Optional[float] = Field(default=0, ge=0, le=1000)
     source: Optional[Literal["ai", "manual"]] = "manual"
-    image_b64: Optional[str] = None
+    image_b64: Optional[str] = Field(default=None, max_length=250_000)
 
 
 class AnalyzeBody(BaseModel):
-    image_base64: str
+    image_base64: str = Field(min_length=32, max_length=8 * 1024 * 1024)  # ≤ ~6 MB decoded
 
 
 # ---------- Helpers ----------
@@ -338,11 +347,26 @@ async def create_checkout(user=Depends(current_user)):
 @app.get("/api/subscription/checkout-page", response_class=HTMLResponse)
 async def checkout_page(subscription_id: str):
     """Hosted checkout page loaded inside WebView on the mobile app."""
+    # Strict allowlist prevents reflected XSS by rejecting anything that isn't a plain Razorpay id.
+    if not RZP_ID_RE.match(subscription_id or ""):
+        raise HTTPException(400, "Invalid subscription id")
+    # Verify subscription belongs to a real record; also protects against enumerating arbitrary ids.
+    exists = await db.subscriptions.find_one({"razorpay_subscription_id": subscription_id}, {"_id": 1})
+    if not exists:
+        raise HTTPException(404, "Subscription not found")
+
+    # Values are now guaranteed alphanumeric-only, but we still JSON-encode and swap the "</"
+    # sequence to be defense-in-depth against future edits.
+    def js_str(v: str) -> str:
+        return json.dumps(v).replace("</", "<\\/")
+
     html = f"""<!doctype html>
 <html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://checkout.razorpay.com https://*.razorpay.com; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline'; img-src * data: blob:; connect-src https://checkout.razorpay.com https://*.razorpay.com; frame-src https://*.razorpay.com;" />
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>CRACK — Subscribe</title>
 <style>
   body {{ font-family: system-ui, -apple-system, sans-serif; background: #fff; margin:0; padding: 32px; color:#111827; text-align:center; }}
@@ -363,11 +387,11 @@ async def checkout_page(subscription_id: str):
 <script>
   document.getElementById('pay').addEventListener('click', function() {{
     var options = {{
-      key: {json.dumps(RZP_KEY_ID)},
-      subscription_id: {json.dumps(subscription_id)},
+      key: {js_str(RZP_KEY_ID)},
+      subscription_id: {js_str(subscription_id)},
       name: 'CRACK',
       description: 'Premium — 10-day free trial, then Rs.39/month',
-      callback_url: {json.dumps((PUBLIC_API_URL or '') + '/api/subscription/callback')},
+      callback_url: {js_str((PUBLIC_API_URL or '') + '/api/subscription/callback')},
       theme: {{ color: '#E05D36' }}
     }};
     var rzp = new Razorpay(options);
@@ -376,7 +400,15 @@ async def checkout_page(subscription_id: str):
 </script>
 </body>
 </html>"""
-    return HTMLResponse(html)
+    return HTMLResponse(
+        html,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+            "X-Frame-Options": "SAMEORIGIN",
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @app.post("/api/subscription/callback")
@@ -403,6 +435,10 @@ async def subscription_callback(
 
 @app.post("/api/subscription/webhook")
 async def subscription_webhook(request: Request):
+    # Fail closed if the webhook secret hasn't been configured yet.
+    if not RZP_WEBHOOK_LIVE:
+        raise HTTPException(503, "Webhook not configured")
+
     raw = await request.body()
     received = request.headers.get("x-razorpay-signature", "")
     expected = hmac.new(RZP_WEBHOOK_SECRET.encode(), raw, hashlib.sha256).hexdigest()
@@ -461,6 +497,14 @@ async def analyze_food(body: AnalyzeBody, user=Depends(require_active_subscripti
     if img_b64.startswith("data:"):
         img_b64 = img_b64.split(",", 1)[1]
 
+    # Reject payloads whose decoded size exceeds the limit
+    try:
+        approx_bytes = (len(img_b64) * 3) // 4
+    except Exception:
+        approx_bytes = 0
+    if approx_bytes > MAX_IMAGE_BYTES:
+        raise HTTPException(413, "Image too large")
+
     system = (
         "You are a nutrition estimator. Given a food photo, respond with STRICT JSON "
         "matching this schema and no extra text: "
@@ -482,9 +526,10 @@ async def analyze_food(body: AnalyzeBody, user=Depends(require_active_subscripti
     )
     try:
         raw = await chat.send_message(msg)
-    except Exception as e:
+    except Exception:
         logger.exception("Gemini analyze failed")
-        raise HTTPException(502, f"AI analysis failed: {e}")
+        # Do not leak provider error details to clients
+        raise HTTPException(502, "AI analysis failed. Please try again.")
 
     data = _parse_json(raw) or {}
     return {
@@ -501,16 +546,20 @@ async def analyze_food(body: AnalyzeBody, user=Depends(require_active_subscripti
 # ---------- Food Log ----------
 @api.post("/food/log")
 async def log_food(body: FoodLogBody, user=Depends(current_user)):
+    # Never persist raw meal photos in the log; keep only a small thumbnail if provided.
+    thumb = body.image_b64
+    if thumb and len(thumb) > 200_000:
+        thumb = None
     entry = {
         "id": str(uuid.uuid4()),
         "user_id": user["id"],
-        "food_name": body.food_name,
+        "food_name": body.food_name[:120],
         "calories": float(body.calories),
         "fat_g": float(body.fat_g or 0),
         "carbs_g": float(body.carbs_g or 0),
         "protein_g": float(body.protein_g or 0),
         "source": body.source or "manual",
-        "image_b64": body.image_b64,
+        "image_b64": thumb,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     await db.food_logs.insert_one(entry)
@@ -578,6 +627,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def on_startup():
+    try:
+        await db.rzp_events.create_index("event_id", unique=True)
+    except Exception:
+        logger.exception("Failed to create rzp_events index")
 
 
 @app.on_event("shutdown")

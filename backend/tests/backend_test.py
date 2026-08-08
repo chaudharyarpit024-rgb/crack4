@@ -84,7 +84,9 @@ class TestAuth:
         assert "id" in u and "password" not in u
 
     def test_signup_duplicate_email_rejected(self, s, new_user):
-        r = s.post(f"{API}/auth/signup", json={"email": new_user["email"], "password": "x"}, timeout=15)
+        # Use valid-length password so the request passes Pydantic validation and
+        # actually reaches the duplicate-email check (which returns 400).
+        r = s.post(f"{API}/auth/signup", json={"email": new_user["email"], "password": "secret123"}, timeout=15)
         assert r.status_code == 400
 
     def test_login_valid(self, s, new_user):
