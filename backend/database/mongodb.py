@@ -1,7 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from config.settings import MONGO_URL, DB_NAME, logger
 
-client: AsyncIOMotorClient = AsyncIOMotorClient(MONGO_URL)
+client: AsyncIOMotorClient = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=3000)
 db = client[DB_NAME]
 
 

@@ -2,7 +2,21 @@ import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+export function getBaseUrl(): string {
+  const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  if (Platform.OS !== "web") {
+    // If on a physical phone or emulator and URL is localhost, resolve laptop's LAN IP
+    if (!envUrl || envUrl.includes("localhost") || envUrl.includes("127.0.0.1")) {
+      const hostUri = Constants.expoConfig?.hostUri || (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
+      if (hostUri) {
+        const ip = hostUri.split(":")[0];
+        return `http://${ip}:8000`;
+      }
+    }
+  }
+  return envUrl || "http://localhost:8000";
+}
+
 const TOKEN_KEY = "crack.auth.token";
 
 async function getToken(): Promise<string | null> {
@@ -46,7 +60,8 @@ export async function api<T = any>(
     const t = await getToken();
     if (t) headers.Authorization = `Bearer ${t}`;
   }
-  const res = await fetch(`${BASE}/api${path}`, {
+  const baseUrl = getBaseUrl();
+  const res = await fetch(`${baseUrl}/api${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -67,4 +82,4 @@ export async function api<T = any>(
   return data as T;
 }
 
-export const API_BASE = BASE;
+export const API_BASE = getBaseUrl();
