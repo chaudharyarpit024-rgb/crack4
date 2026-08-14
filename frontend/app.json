@@ -23,7 +23,11 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.nutritionsimple.xmb3cy",
-      "permissions": ["android.permission.CAMERA", "android.permission.READ_MEDIA_IMAGES"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -57,6 +61,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8c9514d9-8be0-410d-b89a-854ec255edd2"
+      }
     }
   }
 }
