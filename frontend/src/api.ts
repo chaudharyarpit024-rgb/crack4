@@ -14,7 +14,7 @@ export function getBaseUrl(): string {
       }
     }
   }
-  return envUrl || "http://localhost:8000";
+  return envUrl || "https://crack4-avoa.onrender.com";
 }
 
 const TOKEN_KEY = "crack.auth.token";
