@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Crack",
+    "slug": "Crack",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "Crack",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.nutritionsimple.xmb3cy",
+      "bundleIdentifier": "com.emergent.crack",
       "infoPlist": {
         "NSCameraUsageDescription": "Scan food to estimate calories",
         "NSPhotoLibraryUsageDescription": "Import food photos to estimate calories"
@@ -22,7 +22,7 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.nutritionsimple.xmb3cy",
+      "package": "com.emergent.crack",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",

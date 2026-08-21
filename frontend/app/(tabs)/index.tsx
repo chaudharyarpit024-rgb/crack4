@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";  //added new for overlaping bottom tab bar(1)
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { colors, spacing, radius } from "@/src/theme";
@@ -64,7 +65,8 @@ function CalorieRing({ eaten, target }: { eaten: number; target: number }) {
 }
 
 export default function Home() {
-  const router = useRouter();
+  const router = useRouter(); 
+  const insets = useSafeAreaInsets();//added new for overlaping bottom tab bar(2)
   const [me, setMe] = useState<User | null>(null);
   const [items, setItems] = useState<LogItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -234,15 +236,16 @@ export default function Home() {
         <Pressable
           testID="camera-fab"
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            if (sub && !sub.active) {
-              router.push({ pathname: "/subscribe", params: { reason: "trial-ended" } });
-            } else {
-              router.push("/camera");
-            }
+           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+           if (sub && !sub.active) {
+           router.push({ pathname: "/subscribe", params: { reason: "trial-ended" } });
+           } else {
+           router.push("/camera");
+          }
           }}
-          style={styles.fabPrimary}
+          style={[styles.fabPrimary, { bottom: 84 + insets.bottom }]}        // ← CHANGED for overlaping bottom tab bar
         >
+        
           <Ionicons name="camera" size={26} color={colors.onBrand} />
         </Pressable>
       </View>
