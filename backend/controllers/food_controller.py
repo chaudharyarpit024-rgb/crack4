@@ -26,11 +26,11 @@ async def analyze_food_image(body: AnalyzeBody) -> dict:
     system = (
         "You are a nutrition estimator. Given a food photo, respond with STRICT JSON "
         "matching this schema and no extra text: "
-        '{"food_name": string, "calories": number, "fat_g": number, '
+        '{"food_name": string, "serving_size_g": number, "calories": number, "fat_g": number, '
         '"carbs_g": number, "protein_g": number, "verdict": "good"|"bad"|"ok", '
         '"reason": string}. '
-        "Estimate for a typical single serving. If not food, set food_name to 'Not food' "
-        "and calories 0 with verdict 'bad'."
+        "Estimate for a typical single serving and include estimated portion weight in grams as serving_size_g (e.g. 150). "
+        "If not food, set food_name to 'Not food', serving_size_g to 0, and calories 0 with verdict 'bad'."
     )
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
@@ -50,8 +50,16 @@ async def analyze_food_image(body: AnalyzeBody) -> dict:
         raise HTTPException(502, "AI analysis failed. Please try again.")
 
     data = parse_json(raw) or {}
+    serving_g = 150.0
+    try:
+        if data.get("serving_size_g") is not None and float(data.get("serving_size_g")) > 0:
+            serving_g = float(data.get("serving_size_g"))
+    except (ValueError, TypeError):
+        serving_g = 150.0
+
     return {
         "food_name": data.get("food_name") or "Unknown food",
+        "serving_size_g": serving_g,
         "calories": float(data.get("calories") or 0),
         "fat_g": float(data.get("fat_g") or 0),
         "carbs_g": float(data.get("carbs_g") or 0),
@@ -75,6 +83,7 @@ async def create_food_log(user: dict, body: FoodLogBody) -> dict:
         "fat_g": float(body.fat_g or 0),
         "carbs_g": float(body.carbs_g or 0),
         "protein_g": float(body.protein_g or 0),
+        "serving_size_g": float(body.serving_size_g) if body.serving_size_g is not None else None,
         "source": body.source or "manual",
         "image_b64": thumb,
         "timestamp": datetime.now(timezone.utc).isoformat(),

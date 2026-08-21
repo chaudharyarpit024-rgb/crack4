@@ -26,14 +26,17 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 from pathlib import Path
 
-load_dotenv(Path("/app/backend/.env"))
-load_dotenv(Path("/app/frontend/.env"))
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(FRONTEND_DIR / ".env")
 
-BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "http://localhost:8000").rstrip("/")
 API = f"{BASE_URL}/api"
-MONGO_URL = os.environ["MONGO_URL"]
-DB_NAME = os.environ["DB_NAME"]
-JWT_SECRET = os.environ["JWT_SECRET"]
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = os.environ.get("DB_NAME", "crack")
+JWT_SECRET = os.environ.get("JWT_SECRET", "crack_d87b95f8c61e40a083f2a58bce92c554_secure_jwt_token_key_auth_session")
+
 
 
 def auth_h(t):

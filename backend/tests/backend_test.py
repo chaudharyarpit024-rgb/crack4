@@ -132,12 +132,13 @@ class TestProfile:
 # ---------- Food log / today / history / delete ----------
 class TestFoodLog:
     def test_log_manual_food(self, s, new_user):
-        payload = {"food_name": "TEST_Apple", "calories": 95, "carbs_g": 25, "source": "manual"}
+        payload = {"food_name": "TEST_Apple", "calories": 95, "carbs_g": 25, "serving_size_g": 180, "source": "manual"}
         r = s.post(f"{API}/food/log", json=payload, headers=auth_h(new_user["token"]), timeout=15)
         assert r.status_code == 200
         d = r.json()
         assert d["food_name"] == "TEST_Apple"
         assert d["calories"] == 95
+        assert d["serving_size_g"] == 180
         assert d["source"] == "manual"
         assert "id" in d
         pytest.food_id = d["id"]
@@ -177,9 +178,10 @@ class TestAnalyze:
         r = s.post(f"{API}/food/analyze", json={"image_base64": b64}, headers=auth_h(new_user["token"]), timeout=120)
         assert r.status_code == 200, r.text
         d = r.json()
-        for k in ("food_name", "calories", "fat_g", "carbs_g", "protein_g", "verdict", "reason"):
+        for k in ("food_name", "serving_size_g", "calories", "fat_g", "carbs_g", "protein_g", "verdict", "reason"):
             assert k in d, f"missing {k}"
         assert isinstance(d["calories"], (int, float))
+        assert d["serving_size_g"] > 0
         assert d["verdict"] in ("good", "bad", "ok")
 
     def test_analyze_requires_auth(self, s):
