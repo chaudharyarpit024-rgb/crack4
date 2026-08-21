@@ -10,6 +10,13 @@ api_router.include_router(profile_router)
 api_router.include_router(food_router)
 api_router.include_router(subscription_router)
 
+
+@api_router.get("")
+@api_router.get("/")
+async def api_root():
+    return {"service": "crack", "ok": True}
+
+
 __all__ = [
     "api_router",
     "auth_router",

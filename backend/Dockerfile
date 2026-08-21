@@ -28,3 +28,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 
 # Start app with Gunicorn + Uvicorn workers for production concurrency
 CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "server:app", "--bind", "0.0.0.0:8000"]
+# Start app with Gunicorn + Uvicorn workers for production concurrency (supports PORT env var on Render)
+CMD ["sh", "-c", "gunicorn -w 4 -k uvicorn.workers.UvicornWorker server:app --bind 0.0.0.0:${PORT:-8000}"]
+
