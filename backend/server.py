@@ -31,6 +31,8 @@ from controllers import (
     signup_user,
     login_user,
     get_me,
+    verify_email,
+    resend_verification,
     update_user_profile,
     analyze_food_image,
     create_food_log,
@@ -103,4 +105,6 @@ __all__ = [
     "razorpay_req",
     "ensure_trial",
     "sub_public",
+    "verify_email",
+    "resend_verification",
 ]

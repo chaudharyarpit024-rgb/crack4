@@ -21,6 +21,9 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   const submit = async () => {
     if (!email || !password) {
@@ -29,6 +32,8 @@ export default function Login() {
     }
     setLoading(true);
     setErr("");
+    setResendMsg("");
+    setNeedsVerification(false);
     try {
       const res = await api<{ token: string; user: any }>("/auth/login", {
         method: "POST",
@@ -40,9 +45,33 @@ export default function Login() {
       if (!u.goal || !u.weight_kg || !u.height_cm) router.replace("/onboarding");
       else router.replace("/(tabs)");
     } catch (e: any) {
-      setErr(e.message || "Login failed");
+      if (e.status === 403) {
+        setErr("Email not verified. Check your inbox for the verification link.");
+        setNeedsVerification(true);
+      } else {
+        setErr(e.message || "Login failed");
+        setNeedsVerification(false);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    if (!email) return;
+    setResending(true);
+    setResendMsg("");
+    try {
+      await api("/auth/resend-verification", {
+        method: "POST",
+        body: { email },
+        auth: false,
+      });
+      setResendMsg("If the account exists, a new verification link has been sent.");
+    } catch (e: any) {
+      setResendMsg(e.message || "Could not resend. Try again in a moment.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -84,6 +113,30 @@ export default function Login() {
           {err ? (
             <Text style={styles.err} testID="login-error">
               {err}
+            </Text>
+          ) : null}
+
+          {needsVerification ? (
+            <Pressable
+              testID="login-resend-verification-button"
+              onPress={resendVerification}
+              disabled={resending}
+              style={({ pressed }) => [
+                styles.btnSecondary,
+                (pressed || resending) && { opacity: 0.85 },
+              ]}
+            >
+              {resending ? (
+                <ActivityIndicator color={colors.brand} />
+              ) : (
+                <Text style={styles.btnSecondaryTxt}>Resend verification email</Text>
+              )}
+            </Pressable>
+          ) : null}
+
+          {resendMsg ? (
+            <Text style={styles.info} testID="login-resend-msg">
+              {resendMsg}
             </Text>
           ) : null}
 
@@ -149,6 +202,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   btnTxt: { color: colors.onBrand, fontSize: 16, fontWeight: "700" },
+  btnSecondary: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: colors.brand,
+    paddingVertical: 14,
+    borderRadius: radius.md,
+    alignItems: "center",
+    marginTop: spacing.md,
+  },
+  btnSecondaryTxt: { color: colors.brand, fontSize: 15, fontWeight: "700" },
   err: { color: colors.error, marginTop: spacing.md, fontSize: 13 },
+  info: { color: colors.brand, marginTop: spacing.md, fontSize: 13 },
   link: { textAlign: "center", color: colors.muted, fontSize: 14 },
 });

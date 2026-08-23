@@ -1,4 +1,10 @@
-from .auth_controller import signup_user, login_user, get_me
+from .auth_controller import (
+    signup_user,
+    login_user,
+    get_me,
+    verify_email,
+    resend_verification,
+)
 from .profile_controller import update_user_profile
 from .food_controller import (
     analyze_food_image,
@@ -19,6 +25,8 @@ __all__ = [
     "signup_user",
     "login_user",
     "get_me",
+    "verify_email",
+    "resend_verification",
     "update_user_profile",
     "analyze_food_image",
     "create_food_log",

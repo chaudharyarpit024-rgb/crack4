@@ -11,6 +11,7 @@ export type User = {
   age?: number | null;
   gender?: string | null;
   daily_target?: number | null;
+  email_verified?: boolean;
 };
 
 export function useMe() {

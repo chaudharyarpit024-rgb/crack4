@@ -48,5 +48,19 @@ TRIAL_DAYS = int(os.environ.get("SUBSCRIPTION_TRIAL_DAYS", 10))
 RZP_LIVE = bool(RZP_KEY_ID) and not RZP_KEY_ID.endswith("placeholder")
 RZP_WEBHOOK_LIVE = bool(RZP_WEBHOOK_SECRET) and "placeholder" not in RZP_WEBHOOK_SECRET.lower()
 
+# Email / SMTP configuration
+# SMTP_DRY_RUN defaults to true so missing SMTP creds never block deploys.
+# In production set SMTP_DRY_RUN=0 along with SMTP_HOST/USER/PASSWORD to send real mail.
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", "no-reply@crack.app")
+SMTP_DRY_RUN = os.environ.get("SMTP_DRY_RUN", "1") == "1"
+
+# Email verification settings
+EMAIL_VERIFY_TTL_HOURS = int(os.environ.get("EMAIL_VERIFY_TTL_HOURS", "24"))
+RESEND_MIN_INTERVAL_SECONDS = int(os.environ.get("RESEND_MIN_INTERVAL_SECONDS", "60"))
+
 # Logger setup
 logger = logging.getLogger("crack")

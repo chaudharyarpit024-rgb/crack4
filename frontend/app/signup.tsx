@@ -13,7 +13,7 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing, radius } from "@/src/theme";
-import { api, setToken } from "@/src/api";
+import { api } from "@/src/api";
 
 export default function Signup() {
   const router = useRouter();
@@ -28,22 +28,25 @@ export default function Signup() {
       setErr("Enter email and password");
       return;
     }
-    if (password.length < 6) {
-      setErr("Password must be at least 6 characters");
+    if (password.length < 8) {
+      setErr("Password must be at least 8 characters");
       return;
     }
     setLoading(true);
     setErr("");
     try {
-      const res = await api<{ token: string; user: any }>("/auth/signup", {
+      await api<{ ok: boolean; message: string; email: string }>("/auth/signup", {
         method: "POST",
         body: { email, password, name },
         auth: false,
       });
-      await setToken(res.token);
-      router.replace("/onboarding");
+      router.replace({ pathname: "/check-email", params: { email } });
     } catch (e: any) {
-      setErr(e.message || "Signup failed");
+      if (e.status === 400) {
+        setErr("Email already registered. Try logging in instead.");
+      } else {
+        setErr(e.message || "Signup failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -86,7 +89,7 @@ export default function Signup() {
           <TextInput
             testID="signup-password-input"
             style={styles.input}
-            placeholder="At least 6 characters"
+            placeholder="At least 8 characters"
             placeholderTextColor={colors.muted}
             secureTextEntry
             value={password}
