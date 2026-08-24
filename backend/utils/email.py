@@ -6,7 +6,7 @@ from email.message import EmailMessage
 import httpx
 
 from config.settings import (
-    RESEND_API_KEY,
+    BREVO_API_KEY,
     SMTP_DRY_RUN,
     SMTP_FROM,
     SMTP_HOST,
@@ -55,27 +55,28 @@ def _send_smtp_sync(msg: EmailMessage) -> None:
         s.send_message(msg)
 
 
-async def _send_resend_api(to: str, subject: str, html: str, text: str) -> bool:
-    """Send email using Resend HTTP API over HTTPS (Port 443), which works on Render Free Tier."""
-    url = "https://api.resend.com/emails"
+async def _send_brevo_api(to: str, subject: str, html: str, text: str) -> bool:
+    """Send email using Brevo HTTP API over HTTPS (Port 443). Allows 300 free emails/day to any recipient."""
+    url = "https://api.brevo.com/v3/smtp/email"
     headers = {
-        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "api-key": BREVO_API_KEY,
         "Content-Type": "application/json",
     }
-    from_addr = SMTP_FROM if SMTP_FROM and SMTP_FROM != "no-reply@crack.app" else "onboarding@resend.dev"
+    # Sender email: uses SMTP_FROM if valid, otherwise defaults to registered Brevo user email
+    sender_email = SMTP_FROM if ("@" in SMTP_FROM and "resend.dev" not in SMTP_FROM and "crack.app" not in SMTP_FROM) else "chaudharyarpit024@gmail.com"
     payload = {
-        "from": from_addr,
-        "to": [to],
+        "sender": {"name": "CRACK", "email": sender_email},
+        "to": [{"email": to}],
         "subject": subject,
-        "html": html,
-        "text": text,
+        "htmlContent": html,
+        "textContent": text,
     }
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(url, headers=headers, json=payload)
         if resp.status_code in (200, 201):
-            logger.info(f"Resend email sent successfully to={to}")
+            logger.info(f"Brevo email sent successfully to={to}")
             return True
-        logger.error(f"Resend API error status={resp.status_code} body={resp.text}")
+        logger.error(f"Brevo API error status={resp.status_code} body={resp.text}")
         return False
 
 
@@ -97,8 +98,8 @@ async def send_email(to: str, subject: str, html: str, text: str) -> bool:
         logger.info(f"[EMAIL DRY-RUN] to={to} subject={subject}\n{text}\n--- HTML ---\n{html}")
         return True
 
-    if RESEND_API_KEY:
-        return await _send_resend_api(to, subject, html, text)
+    if BREVO_API_KEY:
+        return await _send_brevo_api(to, subject, html, text)
 
     try:
         await asyncio.to_thread(_send_smtp_sync, msg)
