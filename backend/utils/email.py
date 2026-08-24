@@ -1,6 +1,7 @@
 """SMTP email sender. Honors SMTP_DRY_RUN to log instead of send in dev/test."""
 import asyncio
 import smtplib
+import socket
 from email.message import EmailMessage
 
 from config.settings import (
@@ -14,10 +15,39 @@ from config.settings import (
 )
 
 
+def _create_ipv4_connection(address, timeout=15, source_address=None):
+    """Force IPv4 address resolution to prevent [Errno 101] Network is unreachable on containers without IPv6 routes."""
+    host, port = address
+    err = None
+    for res in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
+        af, socktype, proto, canonname, sa = res
+        sock = None
+        try:
+            sock = socket.socket(af, socktype, proto)
+            if timeout is not None:
+                sock.settimeout(timeout)
+            if source_address:
+                sock.bind(source_address)
+            sock.connect(sa)
+            return sock
+        except socket.error as exc:
+            err = exc
+            if sock is not None:
+                sock.close()
+    if err is not None:
+        raise err
+    raise socket.error(f"getaddrinfo failed for {host}:{port}")
+
+
 def _send_smtp_sync(msg: EmailMessage) -> None:
     """Send a single message via SMTP. Called inside asyncio.to_thread."""
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
-        s.starttls()
+    smtp_cls = smtplib.SMTP_SSL if SMTP_PORT == 465 else smtplib.SMTP
+    s = smtp_cls(timeout=15)
+    s._get_socket = lambda host, port, timeout: _create_ipv4_connection((host, port), timeout, s.source_address)
+    with s:
+        s.connect(SMTP_HOST, SMTP_PORT)
+        if SMTP_PORT != 465:
+            s.starttls()
         if SMTP_USER:
             s.login(SMTP_USER, SMTP_PASSWORD)
         s.send_message(msg)
