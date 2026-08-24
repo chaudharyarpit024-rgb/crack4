@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import jwt
 from fastapi import HTTPException
+from fastapi.responses import HTMLResponse
 
 from config.settings import PUBLIC_API_URL, logger
 from database.mongodb import db
