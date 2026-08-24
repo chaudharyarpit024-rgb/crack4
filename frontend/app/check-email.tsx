@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -13,21 +13,40 @@ import { api } from "@/src/api";
 
 export default function CheckEmail() {
   const router = useRouter();
-  const { email } = useLocalSearchParams<{ email?: string }>();
+  const params = useLocalSearchParams<{ email?: string | string[] }>();
+  const email = Array.isArray(params.email) ? params.email[0] : params.email;
   const [resending, setResending] = useState(false);
   const [msg, setMsg] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = setInterval(() => {
+      setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldown]);
 
   const resend = async () => {
-    if (!email) return;
+    if (!email || cooldown > 0) return;
     setResending(true);
     setMsg("");
     try {
-      await api("/auth/resend-verification", {
-        method: "POST",
-        body: { email },
-        auth: false,
-      });
-      setMsg("If an account exists for that email, a new link has been sent.");
+      const res = await api<{ ok: boolean; message: string; cooldown?: boolean; retry_after?: number }>(
+        "/auth/resend-verification",
+        {
+          method: "POST",
+          body: { email },
+          auth: false,
+        }
+      );
+      if (res.cooldown && res.retry_after) {
+        setCooldown(res.retry_after);
+        setMsg(res.message || `Please wait ${res.retry_after}s before requesting a new link.`);
+      } else {
+        setCooldown(60);
+        setMsg("Verification email sent! Please check your inbox and spam folder.");
+      }
     } catch (e: any) {
       setMsg(e.message || "Could not resend. Try again in a moment.");
     } finally {
@@ -61,16 +80,18 @@ export default function CheckEmail() {
         <Pressable
           testID="check-email-resend-button"
           onPress={resend}
-          disabled={resending || !email}
+          disabled={resending || !email || cooldown > 0}
           style={({ pressed }) => [
             styles.btn,
-            (pressed || resending) && { opacity: 0.85 },
+            (pressed || resending || cooldown > 0 || !email) && { opacity: 0.7 },
           ]}
         >
           {resending ? (
             <ActivityIndicator color={colors.onBrand} />
           ) : (
-            <Text style={styles.btnTxt}>Resend verification email</Text>
+            <Text style={styles.btnTxt}>
+              {cooldown > 0 ? `Resend email in ${cooldown}s` : "Resend verification email"}
+            </Text>
           )}
         </Pressable>
 

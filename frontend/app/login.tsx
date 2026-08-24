@@ -24,6 +24,15 @@ export default function Login() {
   const [resending, setResending] = useState(false);
   const [resendMsg, setResendMsg] = useState("");
   const [needsVerification, setNeedsVerification] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = setInterval(() => {
+      setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldown]);
 
   const submit = async () => {
     if (!email || !password) {
@@ -58,16 +67,25 @@ export default function Login() {
   };
 
   const resendVerification = async () => {
-    if (!email) return;
+    if (!email || cooldown > 0) return;
     setResending(true);
     setResendMsg("");
     try {
-      await api("/auth/resend-verification", {
-        method: "POST",
-        body: { email },
-        auth: false,
-      });
-      setResendMsg("If the account exists, a new verification link has been sent.");
+      const res = await api<{ ok: boolean; message: string; cooldown?: boolean; retry_after?: number }>(
+        "/auth/resend-verification",
+        {
+          method: "POST",
+          body: { email },
+          auth: false,
+        }
+      );
+      if (res.cooldown && res.retry_after) {
+        setCooldown(res.retry_after);
+        setResendMsg(res.message || `Please wait ${res.retry_after}s before requesting a new link.`);
+      } else {
+        setCooldown(60);
+        setResendMsg("Verification email sent! Please check your inbox and spam folder.");
+      }
     } catch (e: any) {
       setResendMsg(e.message || "Could not resend. Try again in a moment.");
     } finally {
@@ -110,6 +128,14 @@ export default function Login() {
             onChangeText={setPassword}
           />
 
+          <Pressable
+            testID="login-forgot-password-link"
+            onPress={() => router.push({ pathname: "/forgot-password", params: { email } })}
+            style={styles.forgotWrap}
+          >
+            <Text style={styles.forgotTxt}>Forgot password?</Text>
+          </Pressable>
+
           {err ? (
             <Text style={styles.err} testID="login-error">
               {err}
@@ -120,16 +146,18 @@ export default function Login() {
             <Pressable
               testID="login-resend-verification-button"
               onPress={resendVerification}
-              disabled={resending}
+              disabled={resending || cooldown > 0}
               style={({ pressed }) => [
                 styles.btnSecondary,
-                (pressed || resending) && { opacity: 0.85 },
+                (pressed || resending || cooldown > 0) && { opacity: 0.7 },
               ]}
             >
               {resending ? (
                 <ActivityIndicator color={colors.brand} />
               ) : (
-                <Text style={styles.btnSecondaryTxt}>Resend verification email</Text>
+                <Text style={styles.btnSecondaryTxt}>
+                  {cooldown > 0 ? `Resend email in ${cooldown}s` : "Resend verification email"}
+                </Text>
               )}
             </Pressable>
           ) : null}
@@ -212,6 +240,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   btnSecondaryTxt: { color: colors.brand, fontSize: 15, fontWeight: "700" },
+  forgotWrap: { alignSelf: "flex-end", marginTop: spacing.sm, paddingVertical: 4 },
+  forgotTxt: { color: colors.brand, fontSize: 13, fontWeight: "600" },
   err: { color: colors.error, marginTop: spacing.md, fontSize: 13 },
   info: { color: colors.brand, marginTop: spacing.md, fontSize: 13 },
   link: { textAlign: "center", color: colors.muted, fontSize: 14 },

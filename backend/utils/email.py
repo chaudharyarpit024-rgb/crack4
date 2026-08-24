@@ -7,6 +7,7 @@ import httpx
 
 from config.settings import (
     BREVO_API_KEY,
+    BREVO_SENDER_EMAIL,
     SMTP_DRY_RUN,
     SMTP_FROM,
     SMTP_HOST,
@@ -57,13 +58,26 @@ def _send_smtp_sync(msg: EmailMessage) -> None:
 
 async def _send_brevo_api(to: str, subject: str, html: str, text: str) -> bool:
     """Send email using Brevo HTTP API over HTTPS (Port 443). Allows 300 free emails/day to any recipient."""
+    if not BREVO_API_KEY:
+        logger.warning("BREVO_API_KEY is not set; skipping Brevo email send")
+        return False
+
     url = "https://api.brevo.com/v3/smtp/email"
     headers = {
         "api-key": BREVO_API_KEY,
         "Content-Type": "application/json",
+        "Accept": "application/json",
     }
-    # Sender email: uses SMTP_FROM if valid, otherwise defaults to registered Brevo user email
-    sender_email = SMTP_FROM if ("@" in SMTP_FROM and "resend.dev" not in SMTP_FROM and "crack.app" not in SMTP_FROM) else "chaudharyarpit024@gmail.com"
+    # Sender email priority:
+    # 1. Explicit BREVO_SENDER_EMAIL from env
+    # 2. SMTP_FROM if it has a real domain (not default placeholder crack.app or resend.dev)
+    # 3. Default verified account email
+    sender_email = (
+        BREVO_SENDER_EMAIL
+        or (SMTP_FROM if ("@" in SMTP_FROM and "resend.dev" not in SMTP_FROM and "crack.app" not in SMTP_FROM) else None)
+        or "chaudharyarpit024@gmail.com"
+    )
+
     payload = {
         "sender": {"name": "CRACK", "email": sender_email},
         "to": [{"email": to}],
@@ -71,12 +85,16 @@ async def _send_brevo_api(to: str, subject: str, html: str, text: str) -> bool:
         "htmlContent": html,
         "textContent": text,
     }
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(url, headers=headers, json=payload)
-        if resp.status_code in (200, 201):
-            logger.info(f"Brevo email sent successfully to={to}")
-            return True
-        logger.error(f"Brevo API error status={resp.status_code} body={resp.text}")
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+            if resp.status_code in (200, 201):
+                logger.info(f"Brevo email sent successfully to={to} sender={sender_email}")
+                return True
+            logger.error(f"Brevo API error status={resp.status_code} body={resp.text} sender={sender_email} to={to}")
+            return False
+    except Exception as exc:
+        logger.exception(f"Brevo request failed to={to}: {exc}")
         return False
 
 
@@ -87,19 +105,23 @@ async def send_email(to: str, subject: str, html: str, text: str) -> bool:
     Failures are logged and return False; callers should not let send failures
     break user-facing flows (the user can resend).
     """
-    msg = EmailMessage()
-    msg["From"] = SMTP_FROM
-    msg["To"] = to
-    msg["Subject"] = subject
-    msg.set_content(text)
-    msg.add_alternative(html, subtype="html")
-
     if SMTP_DRY_RUN:
         logger.info(f"[EMAIL DRY-RUN] to={to} subject={subject}\n{text}\n--- HTML ---\n{html}")
         return True
 
     if BREVO_API_KEY:
         return await _send_brevo_api(to, subject, html, text)
+
+    if not SMTP_HOST:
+        logger.warning(f"No email provider (Brevo API key or SMTP_HOST) configured. Email to {to} not sent.")
+        return False
+
+    msg = EmailMessage()
+    msg["From"] = SMTP_FROM
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.set_content(text)
+    msg.add_alternative(html, subtype="html")
 
     try:
         await asyncio.to_thread(_send_smtp_sync, msg)

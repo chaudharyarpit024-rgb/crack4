@@ -20,6 +20,10 @@ async def init_db():
         # Auto-purge used jti records 2 days after use (well after 24h JWT expiry).
         await db.used_verification_jti.create_index("used_at", expireAfterSeconds=60 * 60 * 24 * 2)
 
+        # Password reset indexes
+        await db.used_reset_jti.create_index("jti", unique=True)
+        await db.used_reset_jti.create_index("used_at", expireAfterSeconds=60 * 60 * 24 * 2)
+
         # Idempotent migration: legacy users (no email_verified field) are forced to re-verify.
         result = await db.users.update_many(
             {"email_verified": {"$exists": False}},

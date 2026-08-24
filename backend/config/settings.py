@@ -48,16 +48,18 @@ TRIAL_DAYS = int(os.environ.get("SUBSCRIPTION_TRIAL_DAYS", 10))
 RZP_LIVE = bool(RZP_KEY_ID) and not RZP_KEY_ID.endswith("placeholder")
 RZP_WEBHOOK_LIVE = bool(RZP_WEBHOOK_SECRET) and "placeholder" not in RZP_WEBHOOK_SECRET.lower()
 
-# Email / SMTP configuration
-# SMTP_DRY_RUN defaults to true so missing SMTP creds never block deploys.
-# In production set SMTP_DRY_RUN=0 along with SMTP_HOST/USER/PASSWORD to send real mail.
+# Email / SMTP / Brevo configuration
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+BREVO_SENDER_EMAIL = os.environ.get("BREVO_SENDER_EMAIL", "")
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_FROM = os.environ.get("SMTP_FROM", "no-reply@crack.app")
-SMTP_DRY_RUN = os.environ.get("SMTP_DRY_RUN", "1") == "1"
-BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+
+# If BREVO_API_KEY is present, default dry-run to False so emails are sent automatically
+_default_dry_run = "0" if (BREVO_API_KEY or SMTP_HOST) else "1"
+SMTP_DRY_RUN = os.environ.get("SMTP_DRY_RUN", _default_dry_run).lower() in ("1", "true", "yes")
 
 # Email verification settings
 EMAIL_VERIFY_TTL_HOURS = int(os.environ.get("EMAIL_VERIFY_TTL_HOURS", "24"))

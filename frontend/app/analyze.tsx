@@ -27,8 +27,6 @@ type Analysis = {
   reason: string;
 };
 
-type UnitType = "g" | "oz" | "servings";
-
 export default function Analyze() {
   const router = useRouter();
   const { b64 } = useLocalSearchParams<{ b64: string }>();
@@ -36,9 +34,8 @@ export default function Analyze() {
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Exact amount state
-  const [unit, setUnit] = useState<UnitType>("g");
-  const [amountStr, setAmountStr] = useState<string>("150");
+  // Simple direct weight typing (in grams)
+  const [weightStr, setWeightStr] = useState<string>("150");
 
   useEffect(() => {
     if (!b64) {
@@ -53,7 +50,7 @@ export default function Analyze() {
         });
         setResult(r);
         const baseG = r.serving_size_g || 150;
-        setAmountStr(String(Math.round(baseG)));
+        setWeightStr(String(Math.round(baseG)));
       } catch (e: any) {
         const msg = e.message || "Analysis failed";
         if (msg.toLowerCase().includes("subscription") || msg.includes("402")) {
@@ -66,15 +63,7 @@ export default function Analyze() {
   }, [b64]);
 
   const baseGrams = result?.serving_size_g || 150;
-  const numAmount = parseFloat(amountStr) || 0;
-
-  // Calculate equivalent grams based on unit selection
-  let currentGrams = numAmount;
-  if (unit === "oz") {
-    currentGrams = numAmount * 28.3495;
-  } else if (unit === "servings") {
-    currentGrams = numAmount * baseGrams;
-  }
+  const currentGrams = Math.max(0, parseFloat(weightStr) || 0);
 
   const ratio = baseGrams > 0 ? currentGrams / baseGrams : 1;
   const calcCalories = result ? Math.max(0, Math.round(result.calories * ratio)) : 0;
@@ -82,42 +71,9 @@ export default function Analyze() {
   const calcCarbs = result ? Math.max(0, Math.round(result.carbs_g * ratio * 10) / 10) : 0;
   const calcProtein = result ? Math.max(0, Math.round(result.protein_g * ratio * 10) / 10) : 0;
 
-  const handleUnitChange = (newUnit: UnitType) => {
-    Haptics.selectionAsync();
-    if (newUnit === unit) return;
-
-    // Convert existing input value to match new unit
-    let valInGrams = numAmount;
-    if (unit === "oz") valInGrams = numAmount * 28.3495;
-    if (unit === "servings") valInGrams = numAmount * baseGrams;
-
-    if (newUnit === "g") {
-      setAmountStr(String(Math.round(valInGrams)));
-    } else if (newUnit === "oz") {
-      setAmountStr(String(parseFloat((valInGrams / 28.3495).toFixed(1))));
-    } else if (newUnit === "servings") {
-      const s = baseGrams > 0 ? valInGrams / baseGrams : 1;
-      setAmountStr(String(parseFloat(s.toFixed(2))));
-    }
-    setUnit(newUnit);
-  };
-
-  const adjustAmount = (delta: number) => {
+  const setQuickWeight = (grams: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const nextVal = Math.max(0, numAmount + delta);
-    setAmountStr(unit === "servings" ? String(parseFloat(nextVal.toFixed(2))) : String(Math.round(nextVal)));
-  };
-
-  const setMultiplier = (mult: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const targetGrams = baseGrams * mult;
-    if (unit === "g") {
-      setAmountStr(String(Math.round(targetGrams)));
-    } else if (unit === "oz") {
-      setAmountStr(String(parseFloat((targetGrams / 28.3495).toFixed(1))));
-    } else if (unit === "servings") {
-      setAmountStr(String(mult));
-    }
+    setWeightStr(String(Math.round(grams)));
   };
 
   const logIt = async () => {
@@ -148,6 +104,12 @@ export default function Analyze() {
   const verdictLabel =
     result?.verdict === "good" ? "Good to eat" : result?.verdict === "bad" ? "Better skip" : "Okay in moderation";
 
+  // Pre-calculated convenient portion options
+  const halfPortion = Math.round(baseGrams * 0.5);
+  const fullPortion = Math.round(baseGrams);
+  const oneHalfPortion = Math.round(baseGrams * 1.5);
+  const doublePortion = Math.round(baseGrams * 2);
+
   return (
     <SafeAreaView style={styles.wrap} edges={["top"]}>
       <View style={styles.header}>
@@ -158,7 +120,7 @@ export default function Analyze() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {b64 ? (
           <Image
             source={{ uri: `data:image/jpeg;base64,${b64}` }}
@@ -224,82 +186,50 @@ export default function Analyze() {
               </View>
             </View>
 
-            {/* Exact Food Amount & Portion Control Feature */}
+            {/* Simple, User-Friendly Food Weight Card */}
             <View style={styles.amountCard} testID="exact-amount-section">
               <View style={styles.amountHeader}>
                 <Ionicons name="scale-outline" size={20} color={colors.brand} />
-                <Text style={styles.amountTitle}>Exact Food Amount</Text>
+                <Text style={styles.amountTitle}>Portion Weight</Text>
               </View>
-              <Text style={styles.amountSubtitle}>Adjust weight or serving size for precise calories</Text>
+              <Text style={styles.amountSubtitle}>Type your weight in grams to calculate exact calories</Text>
 
-              {/* Unit Toggle Tabs */}
-              <View style={styles.unitTabs}>
-                <Pressable
-                  testID="unit-toggle-g"
-                  onPress={() => handleUnitChange("g")}
-                  style={[styles.unitTab, unit === "g" && styles.unitTabActive]}
-                >
-                  <Text style={[styles.unitTabTxt, unit === "g" && styles.unitTabTxtActive]}>Grams (g)</Text>
-                </Pressable>
-                <Pressable
-                  testID="unit-toggle-oz"
-                  onPress={() => handleUnitChange("oz")}
-                  style={[styles.unitTab, unit === "oz" && styles.unitTabActive]}
-                >
-                  <Text style={[styles.unitTabTxt, unit === "oz" && styles.unitTabTxtActive]}>Ounces (oz)</Text>
-                </Pressable>
-                <Pressable
-                  testID="unit-toggle-servings"
-                  onPress={() => handleUnitChange("servings")}
-                  style={[styles.unitTab, unit === "servings" && styles.unitTabActive]}
-                >
-                  <Text style={[styles.unitTabTxt, unit === "servings" && styles.unitTabTxtActive]}>Servings</Text>
-                </Pressable>
+              {/* Direct Weight Input Box */}
+              <View style={styles.weightInputRow}>
+                <TextInput
+                  testID="exact-amount-input"
+                  style={styles.weightInput}
+                  keyboardType="numeric"
+                  value={weightStr}
+                  onChangeText={setWeightStr}
+                  placeholder="0"
+                  placeholderTextColor={colors.muted}
+                  selectTextOnFocus
+                />
+                <Text style={styles.gramsLabel}>grams</Text>
               </View>
 
-              {/* Input row with Stepper controls */}
-              <View style={styles.inputRow}>
-                <Pressable
-                  testID="amount-minus"
-                  onPress={() => adjustAmount(unit === "servings" ? -0.25 : unit === "oz" ? -1 : -10)}
-                  style={styles.stepBtn}
-                >
-                  <Ionicons name="remove" size={20} color={colors.onSurface} />
-                </Pressable>
-
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    testID="exact-amount-input"
-                    style={styles.amountInput}
-                    keyboardType="decimal-pad"
-                    value={amountStr}
-                    onChangeText={setAmountStr}
-                    selectTextOnFocus
-                  />
-                  <Text style={styles.unitLabel}>{unit}</Text>
-                </View>
-
-                <Pressable
-                  testID="amount-plus"
-                  onPress={() => adjustAmount(unit === "servings" ? 0.25 : unit === "oz" ? 1 : 10)}
-                  style={styles.stepBtn}
-                >
-                  <Ionicons name="add" size={20} color={colors.onSurface} />
-                </Pressable>
-              </View>
-
-              {/* Multiplier Presets */}
-              <View style={styles.presetRow}>
-                {[0.5, 1.0, 1.5, 2.0].map((m) => (
-                  <Pressable
-                    key={m}
-                    testID={`preset-${m}`}
-                    onPress={() => setMultiplier(m)}
-                    style={styles.presetBtn}
-                  >
-                    <Text style={styles.presetTxt}>{m}x</Text>
-                  </Pressable>
-                ))}
+              {/* Quick-select Weight Chips */}
+              <View style={styles.chipsRow}>
+                {[
+                  { label: "½ Portion", g: halfPortion },
+                  { label: "1 Portion", g: fullPortion },
+                  { label: "1.5x", g: oneHalfPortion },
+                  { label: "2x", g: doublePortion },
+                ].map((chip) => {
+                  const isSelected = Math.round(currentGrams) === chip.g;
+                  return (
+                    <Pressable
+                      key={chip.label}
+                      onPress={() => setQuickWeight(chip.g)}
+                      style={[styles.chip, isSelected && styles.chipActive]}
+                    >
+                      <Text style={[styles.chipTxt, isSelected && styles.chipTxtActive]}>
+                        {chip.label} ({chip.g}g)
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
 
@@ -332,6 +262,7 @@ export default function Analyze() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.surface },
@@ -414,92 +345,60 @@ const styles = StyleSheet.create({
   amountHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   amountTitle: { fontSize: 16, fontWeight: "700", color: colors.onSurface },
   amountSubtitle: { fontSize: 12, color: colors.muted, marginTop: 4, marginBottom: spacing.md },
-  unitTabs: {
+  weightInputRow: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    padding: 3,
-    marginBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 4,
+    borderWidth: 1.5,
+    borderColor: colors.brand,
+    marginVertical: spacing.xs,
   },
-  unitTab: {
-    flex: 1,
-    paddingVertical: 8,
+  weightInput: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: colors.onSurface,
+    paddingVertical: 10,
+    textAlign: "center",
+    minWidth: 80,
+  },
+  gramsLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.muted,
+    marginLeft: 8,
+  },
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: spacing.md,
+    justifyContent: "space-between",
+  },
+  chip: {
+    flexBasis: "48%",
+    paddingVertical: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
     alignItems: "center",
-    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  unitTabActive: {
-    backgroundColor: colors.brand,
+  chipActive: {
+    backgroundColor: colors.brand + "22",
+    borderColor: colors.brand,
   },
-  unitTabTxt: {
+  chipTxt: {
     fontSize: 12,
     fontWeight: "600",
     color: colors.muted,
   },
-  unitTabTxtActive: {
-    color: colors.onBrand,
-    fontWeight: "700",
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    marginVertical: spacing.sm,
-  },
-  stepBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1.5,
-    borderColor: colors.brand,
-    minWidth: 140,
-    justifyContent: "center",
-  },
-  amountInput: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: colors.onSurface,
-    paddingVertical: 10,
-    textAlign: "center",
-    minWidth: 60,
-  },
-  unitLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.muted,
-    marginLeft: 6,
-  },
-  presetRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: spacing.md,
-    gap: 8,
-  },
-  presetBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  presetTxt: {
-    fontSize: 13,
-    fontWeight: "700",
+  chipTxtActive: {
     color: colors.brand,
+    fontWeight: "800",
   },
   btn: {
     flexDirection: "row",
@@ -519,3 +418,4 @@ const styles = StyleSheet.create({
   },
   btnGhostTxt: { color: colors.muted, fontSize: 14, fontWeight: "600" },
 });
+

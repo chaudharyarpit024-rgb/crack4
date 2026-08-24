@@ -22,6 +22,8 @@ from security.jwt import make_token, decode_token
 
 
 VERIFICATION_TOKEN_TYPE = "verify_email"
+PASSWORD_RESET_TOKEN_TYPE = "reset_password"
+PASSWORD_RESET_TTL_MINUTES = 15
 
 
 def make_verification_token(user_id: str) -> str:
@@ -47,11 +49,7 @@ def decode_verification_token(token: str) -> dict:
 
 
 async def mark_and_check_jti(jti: str) -> bool:
-    """Atomically record a used jti. Returns True if newly marked, False if already used.
-
-    Uses a unique index on `jti` as the gate: the first insert wins; duplicates raise
-    DuplicateKeyError and we treat that as "already used".
-    """
+    """Atomically record a used verification jti. Returns True if newly marked, False if already used."""
     try:
         await db.used_verification_jti.insert_one({"jti": jti, "used_at": _now()})
         return True
@@ -59,9 +57,39 @@ async def mark_and_check_jti(jti: str) -> bool:
         return False
 
 
-# ---- Resend rate limit (in-memory; upgrade to Redis for multi-worker prod) ----
+def make_password_reset_token(user_id: str) -> str:
+    """Generate a signed 15-minute JWT for password reset."""
+    return make_token(
+        user_id,
+        extra_claims={"type": PASSWORD_RESET_TOKEN_TYPE, "jti": uuid.uuid4().hex},
+        ttl=timedelta(minutes=PASSWORD_RESET_TTL_MINUTES),
+    )
+
+
+def decode_password_reset_token(token: str) -> dict:
+    """Decode a password reset JWT and confirm it has the right type.
+
+    Raises:
+        jwt.ExpiredSignatureError: if exp passed.
+        jwt.InvalidTokenError: if signature invalid, malformed, or wrong type.
+    """
+    payload = decode_token(token)
+    if payload.get("type") != PASSWORD_RESET_TOKEN_TYPE:
+        raise jwt.InvalidTokenError("Wrong token type")
+    return payload
+
+
+async def mark_and_check_reset_jti(jti: str) -> bool:
+    """Atomically record a used reset jti. Returns True if newly marked, False if already used."""
+    try:
+        await db.used_reset_jti.insert_one({"jti": jti, "used_at": _now()})
+        return True
+    except DuplicateKeyError:
+        return False
+
 
 _last_resend: Dict[str, float] = {}
+_last_forgot_password: Dict[str, float] = {}
 
 
 def _now() -> "datetime":  # local helper so we don't import datetime at module top
@@ -69,11 +97,30 @@ def _now() -> "datetime":  # local helper so we don't import datetime at module 
     return datetime.now(timezone.utc)
 
 
-def can_resend(email: str) -> bool:
-    """Return True if a resend is allowed for this email right now."""
+def check_resend_allowed(email: str) -> tuple[bool, int]:
+    """Check if resend is permitted. Returns (allowed, seconds_remaining)."""
     now_mono = time.monotonic()
     last = _last_resend.get(email, 0.0)
-    if now_mono - last < RESEND_MIN_INTERVAL_SECONDS:
-        return False
+    elapsed = now_mono - last
+    if elapsed < RESEND_MIN_INTERVAL_SECONDS:
+        return False, max(1, int(RESEND_MIN_INTERVAL_SECONDS - elapsed))
     _last_resend[email] = now_mono
-    return True
+    return True, 0
+
+
+def can_resend(email: str) -> bool:
+    """Return True if a resend is allowed for this email right now."""
+    allowed, _ = check_resend_allowed(email)
+    return allowed
+
+
+def check_forgot_password_allowed(email: str) -> tuple[bool, int]:
+    """Check if forgot-password request is permitted. Returns (allowed, seconds_remaining)."""
+    now_mono = time.monotonic()
+    last = _last_forgot_password.get(email, 0.0)
+    elapsed = now_mono - last
+    if elapsed < RESEND_MIN_INTERVAL_SECONDS:
+        return False, max(1, int(RESEND_MIN_INTERVAL_SECONDS - elapsed))
+    _last_forgot_password[email] = now_mono
+    return True, 0
+

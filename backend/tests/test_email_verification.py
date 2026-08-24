@@ -65,9 +65,9 @@ async def _fake_send_email(to: str, subject: str, html: str, text: str) -> bool:
 
 # ---- Test infrastructure ----------------------------------------------------
 def _run(coro):
-    """Run a coroutine on a fresh anyio event loop. Works without pytest-asyncio."""
-    import anyio
-    return anyio.run(coro)
+    """Run a coroutine on a fresh event loop. Works without pytest-asyncio."""
+    import asyncio
+    return asyncio.run(coro)
 
 
 def _new_email() -> str:
