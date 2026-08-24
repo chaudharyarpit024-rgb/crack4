@@ -7,6 +7,7 @@ from controllers.auth_controller import (
     login_user,
     get_me,
     verify_email,
+    verify_email_link,
     resend_verification,
 )
 
@@ -26,6 +27,11 @@ async def login(body: LoginBody):
 @router.post("/verify")
 async def verify(body: VerifyBody):
     return await verify_email(body)
+
+
+@router.get("/verify-link")
+async def verify_link(token: str):
+    return await verify_email_link(token)
 
 
 @router.post("/resend-verification")
