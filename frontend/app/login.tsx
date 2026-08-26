@@ -130,7 +130,7 @@ export default function Login() {
 
           <Pressable
             testID="login-forgot-password-link"
-            onPress={() => router.push({ pathname: "/forgot-password", params: { email } })}
+            onPress={() => router.push({ pathname: "/forgot-password" as any, params: { email } })}
             style={styles.forgotWrap}
           >
             <Text style={styles.forgotTxt}>Forgot password?</Text>

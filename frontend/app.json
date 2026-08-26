@@ -63,7 +63,11 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {}
-    }
+      "router": {},
+      "eas": {
+        "projectId": "907d443c-8445-4547-89dc-f312fc949895"
+      }
+    },
+    "owner": "arpit1234567s-team"
   }
 }

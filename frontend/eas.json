@@ -14,7 +14,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://crack4-uljj.onrender.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://crack4-wv5w.onrender.com"
       }
     },
     "production": {

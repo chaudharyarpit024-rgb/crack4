@@ -15,6 +15,7 @@ export const colors = {
   error: "#EF4444",
   info: "#3B82F6",
   border: "#E5E7EB",
+  borderStrong: "#D1D5DB",
   divider: "#F3F4F6",
 };
 

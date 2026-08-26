@@ -103,7 +103,7 @@ export default function ResetPassword() {
                     Invalid or missing reset token. Please request a new password reset link.
                   </Text>
                   <Pressable
-                    onPress={() => router.replace("/forgot-password")}
+                    onPress={() => router.replace("/forgot-password" as any)}
                     style={[styles.btn, { marginTop: spacing.lg }]}
                   >
                     <Text style={styles.btnTxt}>Request New Link</Text>

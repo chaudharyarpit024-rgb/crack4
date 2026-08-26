@@ -40,7 +40,7 @@ export default function Signup() {
         body: { email, password, name },
         auth: false,
       });
-      router.replace({ pathname: "/check-email", params: { email } });
+      router.replace({ pathname: "/check-email" as any, params: { email } });
     } catch (e: any) {
       if (e.status === 400) {
         setErr("Email already registered. Try logging in instead.");

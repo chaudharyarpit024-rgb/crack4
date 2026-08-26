@@ -14,7 +14,7 @@ export function getBaseUrl(): string {
       }
     }
   }
-  return envUrl || "https://crack4-avoa.onrender.com";
+  return envUrl || "https://crack4-wv5w.onrender.com";
 }
 
 const TOKEN_KEY = "crack.auth.token";
