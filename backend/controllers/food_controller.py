@@ -36,7 +36,7 @@ async def analyze_food_image(body: AnalyzeBody) -> dict:
         api_key=EMERGENT_LLM_KEY,
         session_id=f"food-{uuid.uuid4()}",
         system_message=system,
-    ).with_model("gemini", "gemini-3-flash-preview")
+    ).with_model("gemini", "gemini-3.1-flash-lite")
 
     msg = UserMessage(
         text="Analyze this food photo. Return the JSON object only.",

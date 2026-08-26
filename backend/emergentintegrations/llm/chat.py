@@ -1,6 +1,9 @@
 import json
+import logging
 from typing import List, Optional
 import httpx
+
+logger = logging.getLogger("crack.llm")
 
 
 class ImageContent:
@@ -21,7 +24,7 @@ class LlmChat:
         self.session_id = session_id
         self.system_message = system_message
         self.provider = "gemini"
-        self.model = "gemini-3-flash-preview"
+        self.model = "gemini-3.1-flash-lite"
 
     def with_model(self, provider: str, model: str):
         self.provider = provider
@@ -41,7 +44,7 @@ class LlmChat:
                 "reason": "Balanced meal with reasonable protein and carb distribution."
             })
 
-        candidate_models = [self.model, "gemini-3-flash-preview", "gemini-3.6-flash"]
+        candidate_models = [self.model, "gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.6-flash"]
         candidate_models = list(dict.fromkeys(candidate_models))
 
         parts = []
@@ -82,9 +85,12 @@ class LlmChat:
                             parts_resp = content.get("parts", [])
                             if parts_resp and "text" in parts_resp[0]:
                                 return parts_resp[0]["text"]
-                except Exception:
-                    pass
+                    else:
+                        logger.warning("Gemini model %s returned status %d: %s", model_name, resp.status_code, resp.text[:200])
+                except Exception as e:
+                    logger.warning("Gemini model %s request failed: %s", model_name, e)
 
+        logger.error("All Gemini vision candidate models failed to return a response.")
         return json.dumps({
             "food_name": "Healthy Meal Portion",
             "calories": 420,
@@ -94,3 +100,4 @@ class LlmChat:
             "verdict": "good",
             "reason": "Estimated nutritional values for your food image."
         })
+
