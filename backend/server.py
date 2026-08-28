@@ -1,3 +1,4 @@
+from config.settings import RZP_KEY_ID
 import sys
 from pathlib import Path
 
@@ -6,7 +7,7 @@ BACKEND_DIR = Path(__file__).resolve().parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Header, HTTPException, status
 from starlette.middleware.cors import CORSMiddleware
 
 # Configuration & settings (runs boot-guards like JWT secret strength check)
@@ -96,6 +97,41 @@ async def on_startup():
 @app.on_event("shutdown")
 async def shutdown():
     await close_db()
+
+# Load a  secret key from environment variable if exist
+
+import secrets
+from config.settings import WAKEUP_SECRET_KEY
+
+app = FastAPI()
+
+@app.get("/api/awake")
+async def awake_checkpoint(x_wakeup_key: str = Header(None)):
+    """
+    Secure production awakening checkpoint.
+    Requires WAKEUP_SECRET_KEY to be configured
+    """
+
+    if not WAKEUP_SECRET_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="WakeUp checkpoint is not enabled on this server."
+        )
+    if (
+        not x_wakeup_key 
+        or not secrets.compar_digest(
+            x_wakeup_key,
+            WAKEUP_SECRET_KEY
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Invalid or missing wakeup key."
+        )
+    return {
+            "status": "awake",
+            "ok": True
+    }
 
 
 __all__ = [

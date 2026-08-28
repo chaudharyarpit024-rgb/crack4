@@ -89,5 +89,12 @@ RATE_LIMIT_PUBLIC_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_PUBLIC_WINDOW_
 RATE_LIMIT_USER_REQUESTS = int(os.environ.get("RATE_LIMIT_USER_REQUESTS", "300"))
 RATE_LIMIT_USER_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_USER_WINDOW_SECONDS", "60"))
 
+# Awakening checkpoint secret
+WAKEUP_SECRET_KEY = os.environ.get("WAKEUP_SECRET_KEY", "").strip()
+
+# Ensure it meets minimum length if set
+if WAKEUP_SECRET_KEY and len(WAKEUP_SECRET_KEY) < 16:
+    raise RuntimeError("WAKEUP_SECRET_KEY must be at least 16 characters long if configured.")
+
 # Logger setup
 logger = logging.getLogger("crack")
