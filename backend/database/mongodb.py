@@ -13,7 +13,13 @@ def get_client() -> AsyncIOMotorClient:
     except RuntimeError:
         loop = None
     if loop not in _clients or _clients[loop] is None:
-        _clients[loop] = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=3000)
+        client_kwargs = {"serverSelectionTimeoutMS": 5000}
+        try:
+            import certifi
+            client_kwargs["tlsCAFile"] = certifi.where()
+        except ImportError:
+            pass
+        _clients[loop] = AsyncIOMotorClient(MONGO_URL, **client_kwargs)
     return _clients[loop]
 
 
