@@ -88,8 +88,12 @@ def _render_verify_html(success: bool, message: str) -> str:
 
 
 async def _send_verification_email(user_id: str, email: str) -> bool:
-    token = make_verification_token(user_id)
-    url = _verify_url(token)
+    try:
+        token = make_verification_token(user_id)
+        url = _verify_url(token)
+    except RuntimeError as exc:
+        logger.error("Cannot build verification URL — PUBLIC_API_URL not configured: %s", exc)
+        return False
     logger.info(f"Dispatching verification email to {email} with URL: {url}")
     return await send_email(
         email,
@@ -123,7 +127,11 @@ async def signup_user(body: SignupBody) -> dict:
         "email_verified": False,
         "created_at": now,
     }
-    await db.users.insert_one(doc)
+    try:
+        await db.users.insert_one(doc)
+    except Exception:
+        logger.exception("Database error while creating user account for email %s", email)
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     # Provision trial so a returning verified user doesn't hit a cold-start.
     await ensure_trial(user_id)
     # Send verification email. Failures are logged but don't break signup — user can resend.
@@ -183,11 +191,19 @@ async def verify_email(body: VerifyBody) -> dict:
     if not await mark_and_check_jti(jti):
         raise HTTPException(400, "This verification link has already been used.")
 
-    user = await db.users.find_one({"id": user_id})
+    try:
+        user = await db.users.find_one({"id": user_id})
+    except Exception:
+        logger.exception("Database error while looking up user %s during email verification", user_id)
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     if not user:
         raise HTTPException(404, "User not found.")
 
-    await db.users.update_one({"id": user_id}, {"$set": {"email_verified": True}})
+    try:
+        await db.users.update_one({"id": user_id}, {"$set": {"email_verified": True}})
+    except Exception:
+        logger.exception("Database error while marking email verified for user %s", user_id)
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     user["email_verified"] = True
     return {
         "token": make_token(user_id),
@@ -376,8 +392,17 @@ async def forgot_password(body: ForgotPasswordBody) -> dict:
 
     user = await db.users.find_one({"email": email})
     if user:
-        token = make_password_reset_token(user["id"])
-        url = _reset_password_url(token)
+        try:
+            token = make_password_reset_token(user["id"])
+            url = _reset_password_url(token)
+        except RuntimeError as exc:
+            logger.error("Cannot build password reset URL — PUBLIC_API_URL not configured: %s", exc)
+            # Still return 200 so we don't enumerate emails
+            return {
+                "ok": True,
+                "cooldown": False,
+                "message": "If an account exists with that email, a password reset link has been sent.",
+            }
         logger.info(f"Dispatching password reset email to {email}")
         try:
             await send_email(
@@ -416,16 +441,24 @@ async def reset_password(body: ResetPasswordBody) -> dict:
     if not await mark_and_check_reset_jti(jti):
         raise HTTPException(400, "This password reset link has already been used.")
 
-    user = await db.users.find_one({"id": user_id})
+    try:
+        user = await db.users.find_one({"id": user_id})
+    except Exception:
+        logger.exception("Database error while looking up user %s for password reset", user_id)
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     if not user:
         raise HTTPException(404, "User account not found.")
 
     new_hash = hash_pw(body.new_password)
     # Update password and mark email verified (since clicking the email link proves ownership)
-    await db.users.update_one(
-        {"id": user_id},
-        {"$set": {"password": new_hash, "email_verified": True}},
-    )
+    try:
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {"password": new_hash, "email_verified": True}},
+        )
+    except Exception:
+        logger.exception("Database error while resetting password for user %s", user_id)
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     from security.rate_limiter import record_auth_success
     record_auth_success(account=user.get("email"))
     logger.info(f"Password reset successfully completed for user {user_id}")

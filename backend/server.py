@@ -7,11 +7,16 @@ BACKEND_DIR = Path(__file__).resolve().parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from fastapi import FastAPI, Depends, Header, HTTPException, status
+import secrets
+import traceback
+
+from fastapi import FastAPI, Depends, Header, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 # Configuration & settings (runs boot-guards like JWT secret strength check)
-from config.settings import logger
+from config.settings import WAKEUP_SECRET_KEY, logger
 from database.mongodb import client, db, init_db, close_db
 from routes import api_router
 
@@ -52,14 +57,48 @@ from controllers import (
     handle_subscription_webhook,
 )
 
-# App instance
+# App instance — defined once; do NOT re-instantiate below this line.
 app = FastAPI(
     title="CRACK Backend",
     description="Clean, modular, and secure backend API for CRACK diet & nutrition tracking",
     version="1.0.0",
 )
 
+# ---------------------------------------------------------------------------
+# Global exception handlers — must be registered before any route is mounted.
+# ---------------------------------------------------------------------------
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return 422 with only field-level messages; never leak internal file paths."""
+    # Build a stripped-down error list: just loc (field path) + msg, no 'ctx' or 'url'.
+    errors = [
+        {"field": " → ".join(str(l) for l in err.get("loc", [])), "message": err.get("msg", "Invalid value")}
+        for err in exc.errors()
+    ]
+    logger.warning("Request validation error on %s %s: %s", request.method, request.url.path, errors)
+    return JSONResponse(status_code=422, content={"detail": "Invalid request data.", "errors": errors})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler: log the full traceback server-side, return a generic 500 to the client."""
+    logger.error(
+        "Unhandled exception on %s %s\n%s",
+        request.method,
+        request.url.path,
+        traceback.format_exc(),
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected error occurred. Please try again later."},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Middleware
+# ---------------------------------------------------------------------------
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -78,6 +117,10 @@ async def add_rate_limit_headers_middleware(request, call_next):
     return response
 
 
+# ---------------------------------------------------------------------------
+# Routers & endpoints
+# ---------------------------------------------------------------------------
+
 # Mount modular API router
 app.include_router(api_router)
 
@@ -88,7 +131,32 @@ async def root():
     return {"service": "crack", "ok": True}
 
 
+@app.get("/api/awake")
+async def awake_checkpoint(x_wakeup_key: str = Header(None)):
+    """
+    Secure production awakening checkpoint.
+    Requires WAKEUP_SECRET_KEY to be configured.
+    """
+    if not WAKEUP_SECRET_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="WakeUp checkpoint is not enabled on this server.",
+        )
+    if (
+        not x_wakeup_key
+        or not secrets.compare_digest(x_wakeup_key, WAKEUP_SECRET_KEY)  # fixed: was compar_digest
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Invalid or missing wakeup key.",
+        )
+    return {"status": "awake", "ok": True}
+
+
+# ---------------------------------------------------------------------------
 # Lifecycle hooks
+# ---------------------------------------------------------------------------
+
 @app.on_event("startup")
 async def on_startup():
     await init_db()
@@ -97,41 +165,6 @@ async def on_startup():
 @app.on_event("shutdown")
 async def shutdown():
     await close_db()
-
-# Load a  secret key from environment variable if exist
-
-import secrets
-from config.settings import WAKEUP_SECRET_KEY
-
-app = FastAPI()
-
-@app.get("/api/awake")
-async def awake_checkpoint(x_wakeup_key: str = Header(None)):
-    """
-    Secure production awakening checkpoint.
-    Requires WAKEUP_SECRET_KEY to be configured
-    """
-
-    if not WAKEUP_SECRET_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="WakeUp checkpoint is not enabled on this server."
-        )
-    if (
-        not x_wakeup_key 
-        or not secrets.compar_digest(
-            x_wakeup_key,
-            WAKEUP_SECRET_KEY
-        )
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Invalid or missing wakeup key."
-        )
-    return {
-            "status": "awake",
-            "ok": True
-    }
 
 
 __all__ = [

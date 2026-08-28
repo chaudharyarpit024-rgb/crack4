@@ -1,6 +1,8 @@
+from fastapi import HTTPException
 from database.mongodb import db
 from models.profile import ProfileBody
 from utils.nutrition import calorie_target
+from config.settings import logger
 
 
 async def update_user_profile(user: dict, body: ProfileBody) -> dict:
@@ -16,6 +18,10 @@ async def update_user_profile(user: dict, body: ProfileBody) -> dict:
             merged.get("gender"),
         )
         updates["daily_target"] = merged["daily_target"]
-    await db.users.update_one({"id": user["id"]}, {"$set": updates})
-    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
+    try:
+        await db.users.update_one({"id": user["id"]}, {"$set": updates})
+        updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
+    except Exception:
+        logger.exception("Database error while updating profile for user %s", user.get("id"))
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     return updated

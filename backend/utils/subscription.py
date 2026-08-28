@@ -1,26 +1,41 @@
 from datetime import datetime, timezone, timedelta
 from database.mongodb import db
-from config.settings import RZP_PLAN_ID, TRIAL_DAYS, SUB_AMOUNT_PAISE, RZP_LIVE
+from config.settings import RZP_PLAN_ID, TRIAL_DAYS, SUB_AMOUNT_PAISE, RZP_LIVE, logger
 
 
 async def ensure_trial(user_id: str) -> dict:
     """Create a 10-day free trial subscription record on first read if not present."""
-    sub = await db.subscriptions.find_one({"user_id": user_id}, {"_id": 0})
-    if sub:
+    try:
+        sub = await db.subscriptions.find_one({"user_id": user_id}, {"_id": 0})
+        if sub:
+            return sub
+        now = datetime.now(timezone.utc)
+        sub = {
+            "user_id": user_id,
+            "razorpay_subscription_id": None,
+            "plan_id": RZP_PLAN_ID or None,
+            "status": "trialing",
+            "trial_ends_at": (now + timedelta(days=TRIAL_DAYS)).isoformat(),
+            "current_end": None,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+        await db.subscriptions.insert_one(dict(sub))
         return sub
-    now = datetime.now(timezone.utc)
-    sub = {
-        "user_id": user_id,
-        "razorpay_subscription_id": None,
-        "plan_id": RZP_PLAN_ID or None,
-        "status": "trialing",
-        "trial_ends_at": (now + timedelta(days=TRIAL_DAYS)).isoformat(),
-        "current_end": None,
-        "created_at": now.isoformat(),
-        "updated_at": now.isoformat(),
-    }
-    await db.subscriptions.insert_one(dict(sub))
-    return sub
+    except Exception:
+        logger.exception("Database error ensuring trial subscription for user %s", user_id)
+        now = datetime.now(timezone.utc)
+        return {
+            "user_id": user_id,
+            "razorpay_subscription_id": None,
+            "plan_id": RZP_PLAN_ID or None,
+            "status": "trialing",
+            "trial_ends_at": (now + timedelta(days=TRIAL_DAYS)).isoformat(),
+            "current_end": None,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+
 
 
 def sub_public(sub: dict) -> dict:

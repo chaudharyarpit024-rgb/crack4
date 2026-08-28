@@ -15,6 +15,7 @@ from config.settings import (
     MOBILE_RETURN_URL,
     SUB_AMOUNT_PAISE,
     TRIAL_DAYS,
+    logger,
 )
 from utils.subscription import ensure_trial, sub_public
 from utils.razorpay_client import razorpay_req
@@ -30,14 +31,21 @@ async def get_my_subscription(user: dict) -> dict:
 async def create_checkout_session(user: dict) -> dict:
     """Create a Razorpay subscription with 10-day free trial (via start_at)."""
     if not RZP_LIVE:
+        logger.warning("Checkout requested but Razorpay is not configured")
         raise HTTPException(
             503,
-            "Payment is not configured yet. Please ask the admin to add Razorpay keys in backend/.env.",
+            "Payment service is temporarily unavailable. Please try again later.",
         )
     if not RZP_PLAN_ID:
-        raise HTTPException(503, "RAZORPAY_PLAN_ID is not set.")
+        logger.warning("Checkout requested but RAZORPAY_PLAN_ID is not configured")
+        raise HTTPException(503, "Payment service is temporarily unavailable. Please try again later.")
 
-    existing = await db.subscriptions.find_one({"user_id": user["id"]})
+    try:
+        existing = await db.subscriptions.find_one({"user_id": user["id"]})
+    except Exception:
+        logger.exception("Database error checking existing subscription for user %s", user.get("id"))
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
+
     if existing and existing.get("razorpay_subscription_id") and existing.get("status") in {
         "authenticated",
         "active",
@@ -65,19 +73,23 @@ async def create_checkout_session(user: dict) -> dict:
         },
     )
 
-    await db.subscriptions.update_one(
-        {"user_id": user["id"]},
-        {
-            "$set": {
-                "razorpay_subscription_id": sub["id"],
-                "plan_id": sub["plan_id"],
-                "status": sub.get("status", "created"),
-                "trial_ends_at": trial_end.isoformat(),
-                "updated_at": now.isoformat(),
-            }
-        },
-        upsert=True,
-    )
+    try:
+        await db.subscriptions.update_one(
+            {"user_id": user["id"]},
+            {
+                "$set": {
+                    "razorpay_subscription_id": sub["id"],
+                    "plan_id": sub["plan_id"],
+                    "status": sub.get("status", "created"),
+                    "trial_ends_at": trial_end.isoformat(),
+                    "updated_at": now.isoformat(),
+                }
+            },
+            upsert=True,
+        )
+    except Exception:
+        logger.exception("Database error saving subscription %s for user %s", sub.get("id"), user.get("id"))
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     return {
         "subscription_id": sub["id"],
         "key_id": RZP_KEY_ID,
@@ -91,7 +103,11 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
     if not RZP_ID_RE.match(subscription_id or ""):
         raise HTTPException(400, "Invalid subscription id")
     # Verify subscription belongs to a real record; also protects against enumerating arbitrary ids.
-    exists = await db.subscriptions.find_one({"razorpay_subscription_id": subscription_id}, {"_id": 1})
+    try:
+        exists = await db.subscriptions.find_one({"razorpay_subscription_id": subscription_id}, {"_id": 1})
+    except Exception:
+        logger.exception("Database error checking subscription %s in checkout page", subscription_id)
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     if not exists:
         raise HTTPException(404, "Subscription not found")
 
@@ -160,16 +176,20 @@ async def handle_subscription_callback(
     if not verify_payment_signature(razorpay_payment_id, razorpay_subscription_id, razorpay_signature):
         raise HTTPException(400, "Invalid payment signature")
 
-    await db.subscriptions.update_one(
-        {"razorpay_subscription_id": razorpay_subscription_id},
-        {
-            "$set": {
-                "auth_payment_id": razorpay_payment_id,
-                "status": "authenticated",
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-        },
-    )
+    try:
+        await db.subscriptions.update_one(
+            {"razorpay_subscription_id": razorpay_subscription_id},
+            {
+                "$set": {
+                    "auth_payment_id": razorpay_payment_id,
+                    "status": "authenticated",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+        )
+    except Exception:
+        logger.exception("Database error updating subscription %s in callback", razorpay_subscription_id)
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     return RedirectResponse(MOBILE_RETURN_URL, status_code=303)
 
 
@@ -184,7 +204,12 @@ async def handle_subscription_webhook(request: Request) -> dict:
     if not verify_webhook_signature(raw, received):
         raise HTTPException(400, "Invalid webhook signature")
 
-    payload = json.loads(raw)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("Received malformed (non-JSON) webhook payload — body length: %d", len(raw))
+        raise HTTPException(400, "Invalid webhook payload: expected JSON")
+
     event_id = request.headers.get("x-razorpay-event-id") or hashlib.sha256(raw).hexdigest()
     try:
         await db.rzp_events.insert_one(
@@ -209,15 +234,18 @@ async def handle_subscription_webhook(request: Request) -> dict:
         "subscription.completed": "completed",
     }
     if rid and event in status_map:
-        await db.subscriptions.update_one(
-            {"razorpay_subscription_id": rid},
-            {
-                "$set": {
-                    "status": status_map[event],
-                    "current_start": entity.get("current_start"),
-                    "current_end": entity.get("current_end"),
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            },
-        )
+        try:
+            await db.subscriptions.update_one(
+                {"razorpay_subscription_id": rid},
+                {
+                    "$set": {
+                        "status": status_map[event],
+                        "current_start": entity.get("current_start"),
+                        "current_end": entity.get("current_end"),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                },
+            )
+        except Exception:
+            logger.exception("Database error updating subscription %s in webhook event %s", rid, event)
     return {"ok": True}

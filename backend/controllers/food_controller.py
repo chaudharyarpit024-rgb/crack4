@@ -83,7 +83,11 @@ async def create_food_log(user: dict, body: FoodLogBody) -> dict:
         "image_b64": body.image_b64,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    await db.food_logs.insert_one(entry)
+    try:
+        await db.food_logs.insert_one(entry)
+    except Exception:
+        logger.exception("Database error while creating food log for user %s", user.get("id"))
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     return {k: v for k, v in entry.items() if k != "_id"}
 
 
@@ -91,11 +95,15 @@ async def create_food_log(user: dict, body: FoodLogBody) -> dict:
 async def get_today_food_logs(user: dict) -> dict:
     """Retrieve today's food logs and aggregated nutritional totals."""
     start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    cursor = db.food_logs.find(
-        {"user_id": user["id"], "timestamp": {"$gte": start}},
-        {"_id": 0},
-    ).sort("timestamp", -1)
-    items = await cursor.to_list(500)
+    try:
+        cursor = db.food_logs.find(
+            {"user_id": user["id"], "timestamp": {"$gte": start}},
+            {"_id": 0},
+        ).sort("timestamp", -1)
+        items = await cursor.to_list(500)
+    except Exception:
+        logger.exception("Database error while fetching today's food logs for user %s", user.get("id"))
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     total = sum(i.get("calories", 0) for i in items)
     total_protein = sum(i.get("protein_g", 0) or 0 for i in items)
     total_fat = sum(i.get("fat_g", 0) or 0 for i in items)
@@ -112,11 +120,15 @@ async def get_today_food_logs(user: dict) -> dict:
 async def get_food_history(user: dict, days: int = 30) -> dict:
     """Retrieve historical food logs and daily calorie summaries."""
     start = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    cursor = db.food_logs.find(
-        {"user_id": user["id"], "timestamp": {"$gte": start}},
-        {"_id": 0},
-    ).sort("timestamp", -1)
-    items = await cursor.to_list(2000)
+    try:
+        cursor = db.food_logs.find(
+            {"user_id": user["id"], "timestamp": {"$gte": start}},
+            {"_id": 0},
+        ).sort("timestamp", -1)
+        items = await cursor.to_list(2000)
+    except Exception:
+        logger.exception("Database error while fetching food history for user %s", user.get("id"))
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
 
     daily: dict = {}
     for it in items:
@@ -130,7 +142,11 @@ async def get_food_history(user: dict, days: int = 30) -> dict:
 
 async def delete_food_log(user: dict, item_id: str) -> dict:
     """Delete a food log entry with user ownership enforcement (prevents IDOR)."""
-    r = await db.food_logs.delete_one({"id": item_id, "user_id": user["id"]})
+    try:
+        r = await db.food_logs.delete_one({"id": item_id, "user_id": user["id"]})
+    except Exception:
+        logger.exception("Database error while deleting food log %s for user %s", item_id, user.get("id"))
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     if r.deleted_count == 0:
         raise HTTPException(404, "Not found")
     return {"ok": True}
