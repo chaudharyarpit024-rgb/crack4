@@ -35,7 +35,7 @@ BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "http://localhost:8000").rs
 API = f"{BASE_URL}/api"
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "crack")
-JWT_SECRET = os.environ.get("JWT_SECRET", "crack_d87b95f8c61e40a083f2a58bce92c554_secure_jwt_token_key_auth_session")
+JWT_SECRET = os.environ.get("JWT_SECRET", "")  # Must be set via env – never hardcoded
 
 
 

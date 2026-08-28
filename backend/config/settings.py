@@ -15,7 +15,7 @@ load_dotenv(BACKEND_DIR / ".env")
 load_dotenv()
 
 # Database settings
-MONGO_URL = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
+MONGO_URL = os.environ.get("MONGO_URL") or "mongodb://localhost:27017"
 DB_NAME = os.environ.get("DB_NAME", "crack")
 
 # LLM integration
@@ -42,6 +42,12 @@ RZP_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 RZP_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
 RZP_PLAN_ID = os.environ.get("RAZORPAY_PLAN_ID", "")
 PUBLIC_API_URL = os.environ.get("PUBLIC_API_URL", "")
+if not PUBLIC_API_URL:
+    import logging
+    logging.getLogger("crack").warning(
+        "PUBLIC_API_URL is not set. Email verification and password-reset links "
+        "will fail at runtime. Set PUBLIC_API_URL in your .env file."
+    )
 MOBILE_RETURN_URL = os.environ.get("MOBILE_RETURN_URL", "crack://razorpay-complete")
 SUB_AMOUNT_PAISE = int(os.environ.get("SUBSCRIPTION_AMOUNT_PAISE", 3900))
 TRIAL_DAYS = int(os.environ.get("SUBSCRIPTION_TRIAL_DAYS", 10))

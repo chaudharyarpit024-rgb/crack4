@@ -39,13 +39,17 @@ from utils.verification import (
 
 def _verify_url(token: str) -> str:
     """Build an HTTPS web verification URL for email links."""
-    base = PUBLIC_API_URL.rstrip('/') if PUBLIC_API_URL else "https://crack4-wv5w.onrender.com"
+    base = PUBLIC_API_URL.rstrip('/') if PUBLIC_API_URL else ""
+    if not base:
+        raise RuntimeError("PUBLIC_API_URL env var must be set to generate email verification links")
     return f"{base}/api/auth/verify-link?token={token}"
 
 
 def _reset_password_url(token: str) -> str:
     """Build an HTTPS web password reset URL for email links."""
-    base = PUBLIC_API_URL.rstrip('/') if PUBLIC_API_URL else "https://crack4-wv5w.onrender.com"
+    base = PUBLIC_API_URL.rstrip('/') if PUBLIC_API_URL else ""
+    if not base:
+        raise RuntimeError("PUBLIC_API_URL env var must be set to generate password reset links")
     return f"{base}/api/auth/reset-password-web?token={token}"
 
 

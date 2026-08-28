@@ -14,7 +14,14 @@ export function getBaseUrl(): string {
       }
     }
   }
-  return envUrl || "https://crack4-wv5w.onrender.com";
+  // EXPO_PUBLIC_BACKEND_URL must be set in .env – no hardcoded fallback
+  if (!envUrl) {
+    throw new Error(
+      "EXPO_PUBLIC_BACKEND_URL is not set. " +
+      "Copy frontend/.env.example to frontend/.env and fill in the URL."
+    );
+  }
+  return envUrl;
 }
 
 const TOKEN_KEY = "crack.auth.token";
