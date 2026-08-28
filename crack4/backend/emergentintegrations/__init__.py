@@ -1,1 +1,0 @@
-"""Emergent integrations compatibility package."""

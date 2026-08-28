@@ -96,6 +96,8 @@ async def _setup_app():
 
     await init_db()
     _SENT.clear()
+    from security.rate_limiter import rate_limiter
+    rate_limiter.reset()
 
     from httpx import ASGITransport, AsyncClient
     transport = ASGITransport(app=app)

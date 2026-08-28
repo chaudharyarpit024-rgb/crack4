@@ -6,7 +6,7 @@ BACKEND_DIR = Path(__file__).resolve().parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from starlette.middleware.cors import CORSMiddleware
 
 # Configuration & settings (runs boot-guards like JWT secret strength check)
@@ -25,6 +25,11 @@ from security import (
     require_active_subscription,
     verify_payment_signature,
     verify_webhook_signature,
+    rate_limiter,
+    rate_limit_auth,
+    rate_limit_public,
+    record_auth_success,
+    record_auth_failure,
 )
 from utils import calorie_target, parse_json, razorpay_req, ensure_trial, sub_public
 from controllers import (
@@ -62,11 +67,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_rate_limit_headers_middleware(request, call_next):
+    response = await call_next(request)
+    if hasattr(request.state, "rate_limit_headers") and request.state.rate_limit_headers:
+        for k, v in request.state.rate_limit_headers.items():
+            response.headers[k] = v
+    return response
+
+
 # Mount modular API router
 app.include_router(api_router)
 
 
-@app.get("/")
+@app.get("/", dependencies=[Depends(rate_limit_public)])
 async def root():
     """Health check root endpoint."""
     return {"service": "crack", "ok": True}
@@ -100,6 +115,11 @@ __all__ = [
     "require_active_subscription",
     "verify_payment_signature",
     "verify_webhook_signature",
+    "rate_limiter",
+    "rate_limit_auth",
+    "rate_limit_public",
+    "record_auth_success",
+    "record_auth_failure",
     "calorie_target",
     "parse_json",
     "razorpay_req",

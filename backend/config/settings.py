@@ -65,5 +65,29 @@ SMTP_DRY_RUN = os.environ.get("SMTP_DRY_RUN", _default_dry_run).lower() in ("1",
 EMAIL_VERIFY_TTL_HOURS = int(os.environ.get("EMAIL_VERIFY_TTL_HOURS", "24"))
 RESEND_MIN_INTERVAL_SECONDS = int(os.environ.get("RESEND_MIN_INTERVAL_SECONDS", "60"))
 
+# Rate Limiting Configuration
+RATE_LIMIT_ENABLED = os.environ.get("RATE_LIMIT_ENABLED", "1").lower() in ("1", "true", "yes")
+
+# Auth routes rate limits (strictest: IP limits + per-account limits with exponential backoff)
+RATE_LIMIT_AUTH_IP_REQUESTS = int(os.environ.get("RATE_LIMIT_AUTH_IP_REQUESTS", "20"))
+RATE_LIMIT_AUTH_IP_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_AUTH_IP_WINDOW_SECONDS", "60"))
+RATE_LIMIT_AUTH_IP_BASE_BACKOFF = float(os.environ.get("RATE_LIMIT_AUTH_IP_BASE_BACKOFF", "2.0"))
+RATE_LIMIT_AUTH_IP_BACKOFF_FACTOR = float(os.environ.get("RATE_LIMIT_AUTH_IP_BACKOFF_FACTOR", "2.0"))
+RATE_LIMIT_AUTH_IP_MAX_BACKOFF = float(os.environ.get("RATE_LIMIT_AUTH_IP_MAX_BACKOFF", "300.0"))
+
+RATE_LIMIT_AUTH_ACCOUNT_MAX_ATTEMPTS = int(os.environ.get("RATE_LIMIT_AUTH_ACCOUNT_MAX_ATTEMPTS", "5"))
+RATE_LIMIT_AUTH_ACCOUNT_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_AUTH_ACCOUNT_WINDOW_SECONDS", "300"))
+RATE_LIMIT_AUTH_ACCOUNT_BASE_BACKOFF = float(os.environ.get("RATE_LIMIT_AUTH_ACCOUNT_BASE_BACKOFF", "5.0"))
+RATE_LIMIT_AUTH_ACCOUNT_BACKOFF_FACTOR = float(os.environ.get("RATE_LIMIT_AUTH_ACCOUNT_BACKOFF_FACTOR", "2.0"))
+RATE_LIMIT_AUTH_ACCOUNT_MAX_BACKOFF = float(os.environ.get("RATE_LIMIT_AUTH_ACCOUNT_MAX_BACKOFF", "900.0"))
+
+# Public endpoints rate limits (moderate limits per IP)
+RATE_LIMIT_PUBLIC_REQUESTS = int(os.environ.get("RATE_LIMIT_PUBLIC_REQUESTS", "60"))
+RATE_LIMIT_PUBLIC_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_PUBLIC_WINDOW_SECONDS", "60"))
+
+# Authenticated user actions rate limits (looser limits per authenticated user)
+RATE_LIMIT_USER_REQUESTS = int(os.environ.get("RATE_LIMIT_USER_REQUESTS", "300"))
+RATE_LIMIT_USER_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_USER_WINDOW_SECONDS", "60"))
+
 # Logger setup
 logger = logging.getLogger("crack")

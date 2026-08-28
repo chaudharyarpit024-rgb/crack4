@@ -21,4 +21,5 @@ def parse_json(text: str) -> Optional[dict]:
     try:
         return json.loads(m.group(0))
     except Exception:
+
         return None

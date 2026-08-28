@@ -1,9 +1,53 @@
+import asyncio
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 from config.settings import MONGO_URL, DB_NAME, logger
 
-client: AsyncIOMotorClient = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=3000)
-db = client[DB_NAME]
+_clients: dict = {}
+
+
+def get_client() -> AsyncIOMotorClient:
+    """Retrieve or instantiate an AsyncIOMotorClient bound to the current running event loop."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop not in _clients or _clients[loop] is None:
+        _clients[loop] = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=3000)
+    return _clients[loop]
+
+
+def get_db():
+    """Retrieve the active database instance bound to the current client."""
+    from config.settings import DB_NAME as CURRENT_DB_NAME
+    import os
+    # Allow DB_NAME override in test environments dynamically
+    active_db_name = os.environ.get("DB_NAME", CURRENT_DB_NAME)
+    return get_client()[active_db_name]
+
+
+class _DBProxy:
+    """Proxy object forwarding attribute and item access to the active event loop's database."""
+
+    def __getattr__(self, name):
+        return getattr(get_db(), name)
+
+    def __getitem__(self, name):
+        return get_db()[name]
+
+
+class _ClientProxy:
+    """Proxy object forwarding attribute access to the active event loop's client."""
+
+    def __getattr__(self, name):
+        return getattr(get_client(), name)
+
+    def __getitem__(self, name):
+        return get_client()[name]
+
+
+client = _ClientProxy()
+db = _DBProxy()
 
 
 async def init_db():
@@ -37,6 +81,13 @@ async def init_db():
 
 
 async def close_db():
-    """Close the MongoDB connection client."""
-    client.close()
+    """Close the MongoDB connection client for the active event loop."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop in _clients and _clients[loop] is not None:
+        _clients[loop].close()
+        _clients.pop(loop, None)
     logger.info("MongoDB client connection closed.")
+

@@ -141,12 +141,17 @@ async def login_user(body: LoginBody) -> dict:
 
     Unverified users (including legacy users after the migration) receive 403.
     """
+    from security.rate_limiter import record_auth_failure, record_auth_success
+
     email = body.email.lower().strip()
     user = await db.users.find_one({"email": email})
     if not user or not verify_pw(body.password, user.get("password", "")):
+        record_auth_failure(account=email)
         raise HTTPException(401, "Invalid email or password")
     if not user.get("email_verified", False):
         raise HTTPException(403, "Email not verified. Check your inbox for the verification link.")
+    
+    record_auth_success(account=email)
     await ensure_trial(user["id"])
     return {
         "token": make_token(user["id"]),
@@ -179,6 +184,7 @@ async def verify_email(body: VerifyBody) -> dict:
         raise HTTPException(404, "User not found.")
 
     await db.users.update_one({"id": user_id}, {"$set": {"email_verified": True}})
+    user["email_verified"] = True
     return {
         "token": make_token(user_id),
         "user": {k: v for k, v in user.items() if k not in ("password", "_id")},
@@ -416,6 +422,8 @@ async def reset_password(body: ResetPasswordBody) -> dict:
         {"id": user_id},
         {"$set": {"password": new_hash, "email_verified": True}},
     )
+    from security.rate_limiter import record_auth_success
+    record_auth_success(account=user.get("email"))
     logger.info(f"Password reset successfully completed for user {user_id}")
     return {
         "ok": True,
