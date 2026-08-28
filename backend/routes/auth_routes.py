@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from models.auth import SignupBody, LoginBody
 from models.verification import (
     VerifyBody,
@@ -44,7 +44,9 @@ async def verify(body: VerifyBody):
 
 
 @router.get("/verify-link", dependencies=[Depends(rate_limit_public)])
-async def verify_link(token: str):
+async def verify_link(
+    token: str = Query(..., min_length=1, max_length=4096),
+):
     return await verify_email_link(token)
 
 
@@ -64,8 +66,12 @@ async def handle_reset_password(body: ResetPasswordBody):
 
 
 @router.get("/reset-password-web", dependencies=[Depends(rate_limit_public)])
-async def handle_reset_password_web(token: str):
+async def handle_reset_password_web(
+    token: str = Query(..., min_length=1, max_length=4096),
+):
     return await reset_password_web(token)
+
+
 
 
 @router.get("/me")

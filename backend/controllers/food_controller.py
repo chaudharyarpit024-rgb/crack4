@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
 from database.mongodb import db
-from models.food import AnalyzeBody, FoodLogBody
+from models.food import AnalyzeBody, FoodLogBody, AiAnalyzeResult
 from config.settings import EMERGENT_LLM_KEY, MAX_IMAGE_BYTES, logger
 from utils.json_parser import parse_json
 
@@ -50,46 +50,42 @@ async def analyze_food_image(body: AnalyzeBody) -> dict:
         raise HTTPException(502, "AI analysis failed. Please try again.")
 
     data = parse_json(raw) or {}
-    serving_g = 150.0
     try:
-        if data.get("serving_size_g") is not None and float(data.get("serving_size_g")) > 0:
-            serving_g = float(data.get("serving_size_g"))
-    except (ValueError, TypeError):
-        serving_g = 150.0
+        validated = AiAnalyzeResult.model_validate(data)
+    except Exception:
+        # Fallback to safe defaults if AI returned non-compliant types
+        validated = AiAnalyzeResult(
+            food_name=str(data.get("food_name") or "Unknown food")[:120],
+            serving_size_g=float(data.get("serving_size_g") or 150.0),
+            calories=float(data.get("calories") or 0.0),
+            fat_g=float(data.get("fat_g") or 0.0),
+            carbs_g=float(data.get("carbs_g") or 0.0),
+            protein_g=float(data.get("protein_g") or 0.0),
+            verdict="ok",
+            reason=str(data.get("reason") or "")[:500],
+        )
 
-    return {
-        "food_name": data.get("food_name") or "Unknown food",
-        "serving_size_g": serving_g,
-        "calories": float(data.get("calories") or 0),
-        "fat_g": float(data.get("fat_g") or 0),
-        "carbs_g": float(data.get("carbs_g") or 0),
-        "protein_g": float(data.get("protein_g") or 0),
-        "verdict": data.get("verdict") or "ok",
-        "reason": data.get("reason") or "",
-    }
+    return validated.model_dump()
 
 
 async def create_food_log(user: dict, body: FoodLogBody) -> dict:
-    """Create a new food log entry, safely sanitizing image thumbnails."""
-    # Never persist raw meal photos in the log; keep only a small thumbnail if provided.
-    thumb = body.image_b64
-    if thumb and len(thumb) > 200_000:
-        thumb = None
+    """Create a new food log entry from strictly validated input."""
     entry = {
         "id": str(uuid.uuid4()),
         "user_id": user["id"],
-        "food_name": body.food_name[:120],
+        "food_name": body.food_name,
         "calories": float(body.calories),
         "fat_g": float(body.fat_g or 0),
         "carbs_g": float(body.carbs_g or 0),
         "protein_g": float(body.protein_g or 0),
         "serving_size_g": float(body.serving_size_g) if body.serving_size_g is not None else None,
         "source": body.source or "manual",
-        "image_b64": thumb,
+        "image_b64": body.image_b64,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     await db.food_logs.insert_one(entry)
     return {k: v for k, v in entry.items() if k != "_id"}
+
 
 
 async def get_today_food_logs(user: dict) -> dict:

@@ -1,18 +1,36 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class VerifyBody(BaseModel):
-    token: str = Field(min_length=1, max_length=4096)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    token: str = Field(
+        ...,
+        min_length=1,
+        max_length=4096,
+    )
 
 
 class ResendBody(BaseModel):
-    email: EmailStr
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: EmailStr = Field(..., max_length=255)
 
 
 class ForgotPasswordBody(BaseModel):
-    email: EmailStr
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: EmailStr = Field(..., max_length=255)
 
 
 class ResetPasswordBody(BaseModel):
-    token: str = Field(min_length=10, max_length=4096)
-    new_password: str = Field(min_length=8, max_length=128)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    token: str = Field(
+        ...,
+        min_length=1,
+        max_length=4096,
+    )
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+

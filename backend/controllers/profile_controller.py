@@ -5,7 +5,7 @@ from utils.nutrition import calorie_target
 
 async def update_user_profile(user: dict, body: ProfileBody) -> dict:
     """Update profile metrics and recalculate daily calorie goal if required parameters are present."""
-    updates = {k: v for k, v in body.dict().items() if v is not None}
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
     merged = {**user, **updates}
     if merged.get("goal") and merged.get("weight_kg") and merged.get("height_cm"):
         merged["daily_target"] = calorie_target(

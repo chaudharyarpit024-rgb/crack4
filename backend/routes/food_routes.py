@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Path
 from models.food import AnalyzeBody, FoodLogBody
 from security.dependencies import current_user, require_active_subscription
 from controllers.food_controller import (
@@ -34,10 +34,17 @@ async def today_logs(user: dict = Depends(current_user)):
 
 
 @router.get("/history")
-async def history(days: int = 30, user: dict = Depends(current_user)):
+async def history(
+    days: int = Query(default=30, ge=1, le=365, description="Number of historical days to retrieve"),
+    user: dict = Depends(current_user),
+):
     return await get_food_history(user, days)
 
 
 @router.delete("/{item_id}")
-async def delete_log(item_id: str, user: dict = Depends(current_user)):
+async def delete_log(
+    item_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[\w\-]+$"),
+    user: dict = Depends(current_user),
+):
     return await delete_food_log(user, item_id)
+

@@ -1,8 +1,13 @@
 from .auth import SignupBody, LoginBody
 from .profile import ProfileBody
-from .food import FoodLogBody, AnalyzeBody
+from .food import FoodLogBody, AnalyzeBody, AiAnalyzeResult
 from .subscription import SubscriptionPublic, CheckoutResponse
-from .verification import VerifyBody, ResendBody
+from .verification import (
+    VerifyBody,
+    ResendBody,
+    ForgotPasswordBody,
+    ResetPasswordBody,
+)
 
 __all__ = [
     "SignupBody",
@@ -10,8 +15,12 @@ __all__ = [
     "ProfileBody",
     "FoodLogBody",
     "AnalyzeBody",
+    "AiAnalyzeResult",
     "SubscriptionPublic",
     "CheckoutResponse",
     "VerifyBody",
     "ResendBody",
+    "ForgotPasswordBody",
+    "ResetPasswordBody",
 ]
+
