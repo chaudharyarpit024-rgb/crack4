@@ -37,6 +37,20 @@ from utils.verification import (
 )
 
 
+def mask_email(email: str) -> str:
+    """Mask email to prevent writing raw PII to logs."""
+    if not email or "@" not in email:
+        return email
+    parts = email.split("@", 1)
+    name = parts[0]
+    domain = parts[1]
+    if len(name) <= 2:
+        masked_name = name[0] + "*" * (len(name) - 1) if name else ""
+    else:
+        masked_name = name[0] + "*" * (len(name) - 2) + name[-1]
+    return f"{masked_name}@{domain}"
+
+
 def _verify_url(token: str) -> str:
     """Build an HTTPS web verification URL for email links."""
     base = PUBLIC_API_URL.rstrip('/') if PUBLIC_API_URL else ""
@@ -94,7 +108,7 @@ async def _send_verification_email(user_id: str, email: str) -> bool:
     except RuntimeError as exc:
         logger.error("Cannot build verification URL — PUBLIC_API_URL not configured: %s", exc)
         return False
-    logger.info(f"Dispatching verification email to {email} with URL: {url}")
+    logger.info("Dispatching verification email to %s", mask_email(email))
     return await send_email(
         email,
         "Verify your CRACK email",
@@ -130,7 +144,7 @@ async def signup_user(body: SignupBody) -> dict:
     try:
         await db.users.insert_one(doc)
     except Exception:
-        logger.exception("Database error while creating user account for email %s", email)
+        logger.exception("Database error while creating user account for email %s", mask_email(email))
         raise HTTPException(503, "Service temporarily unavailable. Please try again.")
     # Provision trial so a returning verified user doesn't hit a cold-start.
     await ensure_trial(user_id)
@@ -138,9 +152,9 @@ async def signup_user(body: SignupBody) -> dict:
     try:
         sent = await _send_verification_email(user_id, email)
         if not sent:
-            logger.warning(f"Initial signup verification email could not be sent to {email}")
+            logger.warning("Initial signup verification email could not be sent to %s", mask_email(email))
     except Exception:
-        logger.exception(f"Failed to send verification email to {email}")
+        logger.exception("Failed to send verification email to %s", mask_email(email))
     return {
         "ok": True,
         "message": "Check your email for a verification link.",
@@ -231,9 +245,9 @@ async def resend_verification(body: ResendBody) -> dict:
         try:
             sent = await _send_verification_email(user["id"], email)
             if not sent:
-                logger.warning(f"Resend verification email could not be dispatched to {email}")
+                logger.warning("Resend verification email could not be dispatched to %s", mask_email(email))
         except Exception:
-            logger.exception(f"Failed to resend verification email to {email}")
+            logger.exception("Failed to resend verification email to %s", mask_email(email))
 
     return {
         "ok": True,
@@ -403,7 +417,7 @@ async def forgot_password(body: ForgotPasswordBody) -> dict:
                 "cooldown": False,
                 "message": "If an account exists with that email, a password reset link has been sent.",
             }
-        logger.info(f"Dispatching password reset email to {email}")
+        logger.info("Dispatching password reset email to %s", mask_email(email))
         try:
             await send_email(
                 email,
@@ -412,7 +426,7 @@ async def forgot_password(body: ForgotPasswordBody) -> dict:
                 password_reset_email_text(url),
             )
         except Exception:
-            logger.exception(f"Failed to send password reset email to {email}")
+            logger.exception("Failed to send password reset email to %s", mask_email(email))
 
     return {
         "ok": True,

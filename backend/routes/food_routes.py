@@ -48,7 +48,8 @@ async def analyze_food(
                         await refund_trial_request(user_id)
             except Exception:
                 # Refund failure must not mask the original error the client sees.
-                logger.warning("Refund failed for user_id=%s after 502", getattr(request.state, "user_id", "unknown"))
+                user_id_str = str(getattr(request.state, "user_id", "unknown")).replace("\n", "\\n").replace("\r", "\\r")
+                logger.warning("Refund failed for user_id=%s after 502", user_id_str)
         raise
 
 

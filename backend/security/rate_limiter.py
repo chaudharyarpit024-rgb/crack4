@@ -37,6 +37,20 @@ from config.settings import (
 )
 
 
+def mask_email(email: str) -> str:
+    """Mask email to prevent writing raw PII to logs."""
+    if not email or "@" not in email:
+        return email
+    parts = email.split("@", 1)
+    name = parts[0]
+    domain = parts[1]
+    if len(name) <= 2:
+        masked_name = name[0] + "*" * (len(name) - 1) if name else ""
+    else:
+        masked_name = name[0] + "*" * (len(name) - 2) + name[-1]
+    return f"{masked_name}@{domain}"
+
+
 def get_client_ip(request: Request) -> str:
     """Extract client IP address safely from headers or connection."""
     # Check CF-Connecting-IP (Cloudflare)
@@ -119,7 +133,7 @@ class RateLimiterStore:
     def record_auth_failure(self, account: Optional[str] = None, ip: Optional[str] = None):
         """Log auth failure; attempt is already tracked by check_auth_rate_limit."""
         if account:
-            logger.info(f"Recorded authentication failure for account: {account}")
+            logger.info("Recorded authentication failure for account: %s", mask_email(account))
         elif ip:
             logger.info(f"Recorded authentication failure for IP: {ip}")
 
@@ -402,7 +416,7 @@ def rate_limit_auth(
             request.state.rate_limit_headers = headers
 
         if not allowed:
-            target = f"account '{account}'" if account else f"IP '{ip}'"
+            target = f"account '{mask_email(account)}'" if account else f"IP '{ip}'"
             logger.warning(f"Auth rate limit exceeded for {target}. Backoff retry-after: {retry_after}s")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
