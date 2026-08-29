@@ -17,6 +17,8 @@ from .settings import (
     TRIAL_DAYS,
     RZP_LIVE,
     RZP_WEBHOOK_LIVE,
+    TRIAL_DAILY_MAX_REQUESTS,
+    PAID_MONTHLY_MAX_REQUESTS,
     logger,
 )
 
@@ -39,5 +41,7 @@ __all__ = [
     "TRIAL_DAYS",
     "RZP_LIVE",
     "RZP_WEBHOOK_LIVE",
+    "TRIAL_DAILY_MAX_REQUESTS",
+    "PAID_MONTHLY_MAX_REQUESTS",
     "logger",
 ]

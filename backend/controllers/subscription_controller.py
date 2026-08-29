@@ -17,7 +17,7 @@ from config.settings import (
     TRIAL_DAYS,
     logger,
 )
-from utils.subscription import ensure_trial, sub_public
+from utils.subscription import ensure_trial, sub_public, reset_monthly_usage
 from utils.razorpay_client import razorpay_req
 from security.signatures import verify_payment_signature, verify_webhook_signature
 
@@ -235,17 +235,26 @@ async def handle_subscription_webhook(request: Request) -> dict:
     }
     if rid and event in status_map:
         try:
+            update_payload: dict = {
+                "status": status_map[event],
+                "current_start": entity.get("current_start"),
+                "current_end": entity.get("current_end"),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
             await db.subscriptions.update_one(
                 {"razorpay_subscription_id": rid},
-                {
-                    "$set": {
-                        "status": status_map[event],
-                        "current_start": entity.get("current_start"),
-                        "current_end": entity.get("current_end"),
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                },
+                {"$set": update_payload},
             )
         except Exception:
             logger.exception("Database error updating subscription %s in webhook event %s", rid, event)
+
+        # On successful renewal, reset the monthly AI-scan quota for this user
+        if event == "subscription.charged":
+            try:
+                sub_doc = await db.subscriptions.find_one({"razorpay_subscription_id": rid}, {"_id": 0, "user_id": 1})
+                if sub_doc and sub_doc.get("user_id"):
+                    await reset_monthly_usage(sub_doc["user_id"])
+                    logger.info("Monthly quota reset for user_id=%s on subscription.charged", sub_doc["user_id"])
+            except Exception:
+                logger.exception("Failed to reset monthly quota for subscription %s", rid)
     return {"ok": True}

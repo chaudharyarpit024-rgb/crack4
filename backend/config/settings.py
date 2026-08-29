@@ -3,7 +3,7 @@ import sys
 import re
 import logging
 from pathlib import Path
-from dotenv import load_dotenv
+from dotenv import load_dotenv 
 
 # Ensure backend directory is in sys.path
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -101,6 +101,12 @@ WAKEUP_SECRET_KEY = os.environ.get("WAKEUP_SECRET_KEY", "").strip()
 # Ensure it meets minimum length if set
 if WAKEUP_SECRET_KEY and len(WAKEUP_SECRET_KEY) < 16:
     raise RuntimeError("WAKEUP_SECRET_KEY must be at least 16 characters long if configured.")
+
+# Usage quotas
+# Free-trial users: 5 AI scans per calendar day (UTC). Resets automatically on the next day.
+# Paid users: 500 AI scans per billing month. Resets on subscription.charged webhook.
+TRIAL_DAILY_MAX_REQUESTS = int(os.environ.get("TRIAL_DAILY_MAX_REQUESTS", "5"))
+PAID_MONTHLY_MAX_REQUESTS = int(os.environ.get("PAID_MONTHLY_MAX_REQUESTS", "500"))
 
 # Logger setup
 logger = logging.getLogger("crack")

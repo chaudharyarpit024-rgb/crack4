@@ -11,6 +11,13 @@ def verify_payment_signature(payment_id: str, subscription_id: str, signature: s
 
 
 def verify_webhook_signature(raw_body: bytes, received_signature: str) -> bool:
-    """Verify HMAC-SHA256 signature for Razorpay webhook payloads."""
+    """Verify HMAC-SHA256 signature for Razorpay webhook payloads.
+
+    Raises ValueError if the webhook secret is not configured — an empty secret
+    would let anyone forge a valid HMAC, so we refuse to operate rather than
+    silently accepting forged payloads.
+    """
+    if not RZP_WEBHOOK_SECRET:
+        raise ValueError("RAZORPAY_WEBHOOK_SECRET is not configured — refusing to verify webhook")
     expected = hmac.new(RZP_WEBHOOK_SECRET.encode(), raw_body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, received_signature)

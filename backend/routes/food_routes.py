@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, Query, Path
+import logging
+from fastapi import APIRouter, Depends, Query, Path, HTTPException, Request
 from models.food import AnalyzeBody, FoodLogBody
-from security.dependencies import current_user, require_active_subscription
+from security.dependencies import current_user, enforce_quota
+from utils.subscription import refund_trial_request, refund_paid_request
 from controllers.food_controller import (
     analyze_food_image,
     create_food_log,
@@ -9,15 +11,45 @@ from controllers.food_controller import (
     delete_food_log,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/food", tags=["food"])
 
 
 @router.post("/analyze")
 async def analyze_food(
     body: AnalyzeBody,
-    user: dict = Depends(require_active_subscription),
+    request: Request,
+    user: dict = Depends(enforce_quota),
 ):
-    return await analyze_food_image(body)
+    """
+    Quota is reserved by enforce_quota BEFORE this handler runs (not after success),
+    so concurrent requests can't all slip through before any of them registers a count.
+
+    If the AI upstream fails (infra error → HTTP 502), we refund the reservation so
+    the user is not penalised for our infrastructure problems.
+    If it's a user-input problem (unreadable image → HTTP 4xx), we do NOT refund.
+    """
+    try:
+        return await analyze_food_image(body)
+    except HTTPException as exc:
+        # 502 = upstream AI failure on our side → refund the reservation so
+        # the user is not penalised for our infrastructure problems.
+        # 4xx = user-input problem (bad image etc.) → do NOT refund; it still counts.
+        if exc.status_code == 502:
+            try:
+                # Use getattr with defaults: enforce_quota always sets these before
+                # the route body runs, but be defensive against future refactors.
+                is_paid = getattr(request.state, "is_paid", False)
+                user_id = getattr(request.state, "user_id", None)
+                if user_id:
+                    if is_paid:
+                        await refund_paid_request(user_id)
+                    else:
+                        await refund_trial_request(user_id)
+            except Exception:
+                # Refund failure must not mask the original error the client sees.
+                logger.warning("Refund failed for user_id=%s after 502", getattr(request.state, "user_id", "unknown"))
+        raise
 
 
 @router.post("/log")
@@ -47,4 +79,3 @@ async def delete_log(
     user: dict = Depends(current_user),
 ):
     return await delete_food_log(user, item_id)
-

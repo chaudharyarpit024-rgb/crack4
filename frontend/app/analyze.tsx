@@ -52,9 +52,17 @@ export default function Analyze() {
         const baseG = r.serving_size_g || 150;
         setWeightStr(String(Math.round(baseG)));
       } catch (e: any) {
-        const msg = e.message || "Analysis failed";
-        if (msg.toLowerCase().includes("subscription") || msg.includes("402")) {
-          router.replace({ pathname: "/subscribe", params: { reason: "trial-ended" } });
+        const msg: string = e.message || "Analysis failed";
+        const status: number | undefined = e.status ?? e.statusCode;
+        // 402 → subscription required or daily trial limit hit
+        if (status === 402 || msg.toLowerCase().includes("subscription") || msg.includes("402")) {
+          const reason = msg.toLowerCase().includes("daily") ? "trial-limit" : "trial-ended";
+          router.replace({ pathname: "/subscribe", params: { reason } });
+          return;
+        }
+        // 429 → paid monthly quota exhausted
+        if (status === 429 || msg.includes("429")) {
+          setErr("Monthly scan limit reached (500/500). Your quota resets on your next billing cycle.");
           return;
         }
         setErr(msg);

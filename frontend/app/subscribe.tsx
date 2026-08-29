@@ -15,6 +15,45 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius } from "@/src/theme";
 import { api, API_BASE } from "@/src/api";
 
+// Shared type, matches SubscriptionPublic exactly
+type SubscriptionStatus = {
+  requestsUsed: number;
+  requestsLimit: number;
+  requestsRemaining: number;
+  paidActive: boolean;
+  // ...other existing fields
+};
+
+// analyze.tsx — render banner from the LATEST server response only.
+// If you optimistically decrement locally right after a scan for snappier
+// UI, reconcile it with the next real fetch — never treat the local value
+// as authoritative, since the server is the only place the atomic counter lives.
+function ScanQuotaBanner({ sub }: { sub: SubscriptionStatus }) {
+  const label = sub.paidActive
+    ? `${sub.requestsUsed} / ${sub.requestsLimit} scans remaining this month`
+    : `${sub.requestsRemaining} / ${sub.requestsLimit} free scans remaining`;
+
+  return <div className="quota-banner">{label}</div>;
+}
+
+// When a scan request comes back with 402, redirect to upgrade immediately
+async function handleAnalyze(payload: FoodPayload) {
+  const res = await fetch("/api/analyze", { method: "POST", body: JSON.stringify(payload) });
+  if (res.status === 402) {
+    router.push("/subscribe?reason=trial_exhausted");
+    return;
+  }
+  if (res.status === 429) {
+    showToast("Monthly limit reached — resets on your next billing cycle");
+    return;
+  }
+  if (res.status === 503) {
+    showToast("Something went wrong — please try again in a moment");
+    return;
+  }
+  // ...handle success
+}
+
 type Sub = {
   status: string;
   active: boolean;
@@ -77,11 +116,13 @@ export default function Subscribe() {
   const reasonLine =
     params.reason === "trial-ended"
       ? "Your free trial has ended. Subscribe to keep AI food scanning."
+      : params.reason === "trial-limit"
+      ? "You've used all 5 free scans for today. Subscribe for 500 scans/month."
       : sub?.paid_active
-      ? "You're on the Premium plan."
-      : sub?.trial_active
-      ? `You have ${sub.days_left} day${sub.days_left === 1 ? "" : "s"} left in your free trial.`
-      : "Unlock AI food scanning with premium.";
+        ? "You're on the Premium plan."
+        : sub?.trial_active
+          ? `You have ${sub.days_left} day${sub.days_left === 1 ? "" : "s"} left in your free trial.`
+          : "Unlock AI food scanning with premium.";
 
   return (
     <SafeAreaView style={styles.wrap} edges={["top"]}>
