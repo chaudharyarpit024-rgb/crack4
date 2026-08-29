@@ -3,6 +3,7 @@ FROM python:3.11-slim
 # Prevent Python from writing pyc files to disc & buffering stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV HOME=/home/appuser
 
 WORKDIR /app
 
@@ -12,9 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user and group
+# Create a non-root user and group with a dedicated home directory
 RUN groupadd --system --gid 1001 appgroup && \
-    useradd --system --uid 1001 --gid appgroup --no-create-home appuser
+    useradd --system --uid 1001 --gid appgroup --create-home --home-dir /home/appuser appuser && \
+    mkdir -p /home/appuser && \
+    chown -R appuser:appgroup /home/appuser
 
 # Copy and install python dependencies
 COPY requirements.txt .
