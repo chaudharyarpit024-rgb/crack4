@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 # Configuration & settings (runs boot-guards like JWT secret strength check)
-from config.settings import WAKEUP_SECRET_KEY, logger
+from config.settings import WAKEUP_SECRET_KEY, ALLOWED_ORIGINS, logger
 from database.mongodb import client, db, init_db, close_db
 from routes import api_router
 
@@ -102,7 +102,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

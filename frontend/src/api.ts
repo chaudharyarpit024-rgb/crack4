@@ -26,22 +26,22 @@ export function getBaseUrl(): string {
 
 const TOKEN_KEY = "crack.auth.token";
 
+// Web: store token in memory only (never in localStorage/sessionStorage).
+// In-memory storage is not accessible to XSS or browser extensions.
+// Trade-off: token is lost on hard page refresh — user must re-authenticate.
+// For persistence without XSS risk, migrate to HttpOnly cookies set server-side.
+let _webToken: string | null = null;
+
 async function getToken(): Promise<string | null> {
   if (Platform.OS === "web") {
-    try {
-      return typeof localStorage !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
-    } catch {
-      return null;
-    }
+    return _webToken;
   }
   return await SecureStore.getItemAsync(TOKEN_KEY);
 }
 
 export async function setToken(token: string) {
   if (Platform.OS === "web") {
-    try {
-      localStorage.setItem(TOKEN_KEY, token);
-    } catch {}
+    _webToken = token;
     return;
   }
   await SecureStore.setItemAsync(TOKEN_KEY, token);
@@ -49,9 +49,7 @@ export async function setToken(token: string) {
 
 export async function clearToken() {
   if (Platform.OS === "web") {
-    try {
-      localStorage.removeItem(TOKEN_KEY);
-    } catch {}
+    _webToken = null;
     return;
   }
   await SecureStore.deleteItemAsync(TOKEN_KEY);

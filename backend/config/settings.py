@@ -106,6 +106,14 @@ WAKEUP_SECRET_KEY = os.environ.get("WAKEUP_SECRET_KEY", "").strip()
 if WAKEUP_SECRET_KEY and len(WAKEUP_SECRET_KEY) < 16:
     raise RuntimeError("WAKEUP_SECRET_KEY must be at least 16 characters long if configured.")
 
+# CORS Configuration
+# Comma-separated list of allowed origins. Defaults to standard local development origins.
+CORS_ORIGINS_RAW = os.environ.get(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:8080,http://localhost:8081,http://localhost:19006,http://127.0.0.1:3000,http://127.0.0.1:8080,http://127.0.0.1:8081,http://127.0.0.1:19006",
+)
+ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_RAW.split(",") if origin.strip()]
+
 # Usage quotas
 # Free-trial users: 5 AI scans per calendar day (UTC). Resets automatically on the next day.
 # Paid users: 500 AI scans per billing month. Resets on subscription.charged webhook.
@@ -114,3 +122,4 @@ PAID_MONTHLY_MAX_REQUESTS = int(os.environ.get("PAID_MONTHLY_MAX_REQUESTS", "500
 
 # Logger setup
 logger = logging.getLogger("crack")
+
