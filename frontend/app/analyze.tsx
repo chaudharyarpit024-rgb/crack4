@@ -27,6 +27,17 @@ type Analysis = {
   reason: string;
 };
 
+// Supported measurement units.
+// For logging purposes we always send grams to the backend.
+// ml is treated as 1:1 with g for calorie ratio calculation
+// (water density ≈ 1 g/ml; most juices/milk/soups are within 5%).
+type Unit = "g" | "ml";
+
+const UNITS: { label: string; value: Unit }[] = [
+  { label: "g", value: "g" },
+  { label: "ml", value: "ml" },
+];
+
 export default function Analyze() {
   const router = useRouter();
   const { b64 } = useLocalSearchParams<{ b64: string }>();
@@ -34,8 +45,11 @@ export default function Analyze() {
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Simple direct weight typing (in grams)
+  // Portion state
   const [weightStr, setWeightStr] = useState<string>("150");
+  const [unit, setUnit] = useState<Unit>("g");
+  // When useAIEstimate is true the card collapses and the AI serving size is used directly.
+  const [useAIEstimate, setUseAIEstimate] = useState(false);
 
   useEffect(() => {
     if (!b64) {
@@ -51,6 +65,8 @@ export default function Analyze() {
         setResult(r);
         const baseG = r.serving_size_g || 150;
         setWeightStr(String(Math.round(baseG)));
+        // Default to AI estimate mode — user can opt into custom amount.
+        setUseAIEstimate(true);
       } catch (e: any) {
         const msg: string = e.message || "Analysis failed";
         const status: number | undefined = e.status ?? e.statusCode;
@@ -75,24 +91,51 @@ export default function Analyze() {
     })();
   }, [b64]);
 
+  // The AI's base serving size in grams (always in grams — the AI only knows grams).
   const baseGrams = result?.serving_size_g || 150;
-  const currentGrams = Math.max(0, parseFloat(weightStr) || 0);
 
-  const ratio = baseGrams > 0 ? currentGrams / baseGrams : 1;
+  // The current portion in "grams equivalent" for ratio calculation.
+  // ml is 1:1 with g (density ≈ 1 g/ml for most liquids).
+  const currentAmount = Math.max(0, parseFloat(weightStr) || 0);
+  const effectiveGrams = useAIEstimate ? baseGrams : currentAmount;
+
+  const ratio = baseGrams > 0 ? effectiveGrams / baseGrams : 1;
   const calcCalories = result ? Math.max(0, Math.round(result.calories * ratio)) : 0;
-  const calcFat = result ? Math.max(0, Math.round(result.fat_g * ratio * 10) / 10) : 0;
-  const calcCarbs = result ? Math.max(0, Math.round(result.carbs_g * ratio * 10) / 10) : 0;
-  const calcProtein = result ? Math.max(0, Math.round(result.protein_g * ratio * 10) / 10) : 0;
+  const calcFat      = result ? Math.max(0, Math.round(result.fat_g      * ratio * 10) / 10) : 0;
+  const calcCarbs    = result ? Math.max(0, Math.round(result.carbs_g    * ratio * 10) / 10) : 0;
+  const calcProtein  = result ? Math.max(0, Math.round(result.protein_g  * ratio * 10) / 10) : 0;
 
-  const setQuickWeight = (grams: number) => {
+  const setQuickAmount = (val: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setWeightStr(String(Math.round(grams)));
+    setWeightStr(String(Math.round(val)));
+    setUseAIEstimate(false);
   };
+
+  const toggleEstimate = () => {
+    Haptics.selectionAsync();
+    if (!useAIEstimate) {
+      // Switching back to AI estimate — reset input to AI value
+      setWeightStr(String(Math.round(baseGrams)));
+    }
+    setUseAIEstimate((v) => !v);
+  };
+
+  const switchUnit = (u: Unit) => {
+    Haptics.selectionAsync();
+    setUnit(u);
+  };
+
+  // Portion label for display (e.g. "150g" or "200ml")
+  const portionLabel = useAIEstimate
+    ? `${Math.round(baseGrams)}g (AI estimate)`
+    : `${Math.round(currentAmount)}${unit}`;
 
   const logIt = async () => {
     if (!result) return;
     setSaving(true);
     try {
+      // Always send grams to the backend (ml treated as 1:1 with g).
+      const servingGrams = Math.round(effectiveGrams);
       await api("/food/log", {
         method: "POST",
         body: {
@@ -101,7 +144,7 @@ export default function Analyze() {
           fat_g: calcFat,
           carbs_g: calcCarbs,
           protein_g: calcProtein,
-          serving_size_g: Math.round(currentGrams),
+          serving_size_g: servingGrams,
           source: "ai",
         },
       });
@@ -117,11 +160,11 @@ export default function Analyze() {
   const verdictLabel =
     result?.verdict === "good" ? "Good to eat" : result?.verdict === "bad" ? "Better skip" : "Okay in moderation";
 
-  // Pre-calculated convenient portion options
-  const halfPortion = Math.round(baseGrams * 0.5);
-  const fullPortion = Math.round(baseGrams);
-  const oneHalfPortion = Math.round(baseGrams * 1.5);
-  const doublePortion = Math.round(baseGrams * 2);
+  // Quick-select chips relative to AI base serving
+  const half    = Math.round(baseGrams * 0.5);
+  const full    = Math.round(baseGrams);
+  const oneHalf = Math.round(baseGrams * 1.5);
+  const double  = Math.round(baseGrams * 2);
 
   return (
     <SafeAreaView style={styles.wrap} edges={["top"]}>
@@ -166,6 +209,7 @@ export default function Analyze() {
 
         {result ? (
           <>
+            {/* ── Result card ── */}
             <View style={styles.card}>
               <View style={styles.rowBetween}>
                 <Text style={styles.foodName} testID="analysis-food-name">{result.food_name}</Text>
@@ -178,7 +222,7 @@ export default function Analyze() {
 
               <View style={styles.calorieBig}>
                 <Text style={styles.calorieVal} testID="analysis-calories">{calcCalories}</Text>
-                <Text style={styles.calorieUnit}>calories ({Math.round(currentGrams)}g portion)</Text>
+                <Text style={styles.calorieUnit}>calories · {portionLabel}</Text>
               </View>
 
               <View style={styles.macros}>
@@ -199,51 +243,98 @@ export default function Analyze() {
               </View>
             </View>
 
-            {/* Simple, User-Friendly Food Weight Card */}
+            {/* ── Portion card ── */}
             <View style={styles.amountCard} testID="exact-amount-section">
+              {/* Header row with toggle */}
               <View style={styles.amountHeader}>
                 <Ionicons name="scale-outline" size={20} color={colors.brand} />
-                <Text style={styles.amountTitle}>Portion Weight</Text>
-              </View>
-              <Text style={styles.amountSubtitle}>Type your weight in grams to calculate exact calories</Text>
-
-              {/* Direct Weight Input Box */}
-              <View style={styles.weightInputRow}>
-                <TextInput
-                  testID="exact-amount-input"
-                  style={styles.weightInput}
-                  keyboardType="numeric"
-                  value={weightStr}
-                  onChangeText={setWeightStr}
-                  placeholder="0"
-                  placeholderTextColor={colors.muted}
-                  selectTextOnFocus
-                />
-                <Text style={styles.gramsLabel}>grams</Text>
+                <Text style={styles.amountTitle}>Portion Size</Text>
+                <Pressable
+                  testID="toggle-ai-estimate"
+                  onPress={toggleEstimate}
+                  style={styles.estimateToggle}
+                >
+                  <Ionicons
+                    name={useAIEstimate ? "checkmark-circle" : "checkmark-circle-outline"}
+                    size={16}
+                    color={useAIEstimate ? colors.brand : colors.muted}
+                  />
+                  <Text style={[styles.estimateTxt, useAIEstimate && { color: colors.brand }]}>
+                    Use AI estimate
+                  </Text>
+                </Pressable>
               </View>
 
-              {/* Quick-select Weight Chips */}
-              <View style={styles.chipsRow}>
-                {[
-                  { label: "½ Portion", g: halfPortion },
-                  { label: "1 Portion", g: fullPortion },
-                  { label: "1.5x", g: oneHalfPortion },
-                  { label: "2x", g: doublePortion },
-                ].map((chip) => {
-                  const isSelected = Math.round(currentGrams) === chip.g;
-                  return (
-                    <Pressable
-                      key={chip.label}
-                      onPress={() => setQuickWeight(chip.g)}
-                      style={[styles.chip, isSelected && styles.chipActive]}
-                    >
-                      <Text style={[styles.chipTxt, isSelected && styles.chipTxtActive]}>
-                        {chip.label} ({chip.g}g)
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <Text style={styles.amountSubtitle}>
+                {useAIEstimate
+                  ? `Using AI's estimate of ${Math.round(baseGrams)}g — tap "Use AI estimate" to enter a custom amount.`
+                  : "Enter your actual portion below for precise calories."}
+              </Text>
+
+              {/* Custom input — only visible when not using AI estimate */}
+              {!useAIEstimate && (
+                <>
+                  {/* Unit picker */}
+                  <View style={styles.unitRow}>
+                    {UNITS.map((u) => (
+                      <Pressable
+                        key={u.value}
+                        testID={`unit-${u.value}`}
+                        onPress={() => switchUnit(u.value)}
+                        style={[styles.unitChip, unit === u.value && styles.unitChipActive]}
+                      >
+                        <Text style={[styles.unitChipTxt, unit === u.value && styles.unitChipTxtActive]}>
+                          {u.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                    <Text style={styles.unitHint}>
+                      {unit === "ml" ? "For liquids (juice, milk, soup…)" : "For solids & semi-solids"}
+                    </Text>
+                  </View>
+
+                  {/* Amount input */}
+                  <View style={styles.weightInputRow}>
+                    <TextInput
+                      testID="exact-amount-input"
+                      style={styles.weightInput}
+                      keyboardType="numeric"
+                      value={weightStr}
+                      onChangeText={setWeightStr}
+                      placeholder="0"
+                      placeholderTextColor={colors.muted}
+                      selectTextOnFocus
+                    />
+                    <Text style={styles.unitLabel}>{unit}</Text>
+                  </View>
+
+                  {/* Quick-select chips — always in grams equivalent */}
+                  <View style={styles.chipsRow}>
+                    {[
+                      { label: "½ Serving", val: half },
+                      { label: "1 Serving",  val: full },
+                      { label: "1.5×",       val: oneHalf },
+                      { label: "2×",         val: double },
+                    ].map((chip) => {
+                      const isSelected = !useAIEstimate && Math.round(currentAmount) === chip.val;
+                      return (
+                        <Pressable
+                          key={chip.label}
+                          onPress={() => setQuickAmount(chip.val)}
+                          style={[styles.chip, isSelected && styles.chipActive]}
+                        >
+                          <Text style={[styles.chipTxt, isSelected && styles.chipTxtActive]}>
+                            {chip.label}
+                          </Text>
+                          <Text style={[styles.chipSub, isSelected && styles.chipTxtActive]}>
+                            {chip.val}{unit}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
             </View>
 
             <Pressable
@@ -314,6 +405,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   errTxt: { marginTop: spacing.md, color: colors.onSurface, textAlign: "center" },
+  // ── Result card
   card: {
     marginTop: spacing.lg,
     padding: spacing.lg,
@@ -334,7 +426,7 @@ const styles = StyleSheet.create({
   reason: { marginTop: spacing.sm, fontSize: 13, color: colors.muted, lineHeight: 18 },
   calorieBig: { marginTop: spacing.xl, alignItems: "center" },
   calorieVal: { fontSize: 48, fontWeight: "900", color: colors.brand },
-  calorieUnit: { fontSize: 13, color: colors.muted, textTransform: "uppercase", letterSpacing: 1.5, marginTop: 2 },
+  calorieUnit: { fontSize: 12, color: colors.muted, textTransform: "uppercase", letterSpacing: 1.2, marginTop: 2 },
   macros: {
     flexDirection: "row",
     marginTop: spacing.lg,
@@ -347,6 +439,7 @@ const styles = StyleSheet.create({
   macroVal: { fontSize: 18, fontWeight: "800", color: colors.onSurface },
   macroLabel: { fontSize: 11, color: colors.muted, textTransform: "uppercase", marginTop: 2 },
   macroDivider: { width: 1, backgroundColor: colors.border },
+  // ── Portion card
   amountCard: {
     marginTop: spacing.md,
     padding: spacing.lg,
@@ -356,8 +449,43 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   amountHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  amountTitle: { fontSize: 16, fontWeight: "700", color: colors.onSurface },
-  amountSubtitle: { fontSize: 12, color: colors.muted, marginTop: 4, marginBottom: spacing.md },
+  amountTitle: { fontSize: 16, fontWeight: "700", color: colors.onSurface, flex: 1 },
+  estimateToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  estimateTxt: { fontSize: 12, fontWeight: "700", color: colors.muted },
+  amountSubtitle: { fontSize: 12, color: colors.muted, marginTop: spacing.sm, marginBottom: spacing.md, lineHeight: 18 },
+  // Unit picker
+  unitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  unitChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  unitChipActive: {
+    backgroundColor: colors.brandSoft,
+    borderColor: colors.brand,
+  },
+  unitChipTxt: { fontSize: 14, fontWeight: "700", color: colors.muted },
+  unitChipTxtActive: { color: colors.brand },
+  unitHint: { fontSize: 11, color: colors.muted, flex: 1, flexWrap: "wrap" },
+  // Amount input
   weightInputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -368,7 +496,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderWidth: 1.5,
     borderColor: colors.brand,
-    marginVertical: spacing.xs,
+    marginBottom: spacing.md,
   },
   weightInput: {
     fontSize: 28,
@@ -378,18 +506,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
     minWidth: 80,
   },
-  gramsLabel: {
+  unitLabel: {
     fontSize: 16,
     fontWeight: "700",
     color: colors.muted,
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
+  // Quick chips
   chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: spacing.md,
-    justifyContent: "space-between",
   },
   chip: {
     flexBasis: "48%",
@@ -404,15 +531,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand + "22",
     borderColor: colors.brand,
   },
-  chipTxt: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.muted,
-  },
-  chipTxtActive: {
-    color: colors.brand,
-    fontWeight: "800",
-  },
+  chipTxt: { fontSize: 12, fontWeight: "700", color: colors.muted },
+  chipSub: { fontSize: 11, color: colors.muted, marginTop: 2 },
+  chipTxtActive: { color: colors.brand },
+  // Buttons
   btn: {
     flexDirection: "row",
     backgroundColor: colors.brand,
@@ -431,4 +553,3 @@ const styles = StyleSheet.create({
   },
   btnGhostTxt: { color: colors.muted, fontSize: 14, fontWeight: "600" },
 });
-
