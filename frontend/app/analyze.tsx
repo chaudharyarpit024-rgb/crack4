@@ -65,6 +65,11 @@ export default function Analyze() {
           setErr("Monthly scan limit reached (500/500). Your quota resets on your next billing cycle.");
           return;
         }
+        // 413 → image too large (client-side guard should prevent this, but be safe)
+        if (status === 413 || msg.includes("413") || msg.toLowerCase().includes("too large")) {
+          setErr("Image is too large. Please try again — the camera will compress it automatically.");
+          return;
+        }
         setErr(msg);
       }
     })();

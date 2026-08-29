@@ -33,8 +33,12 @@ if not JWT_SECRET or len(JWT_SECRET) < 32 or "placeholder" in JWT_SECRET.lower()
 # Regex pattern for subscription ID validation (defensive against reflected XSS)
 RZP_ID_RE = re.compile(r"^sub_[A-Za-z0-9]{6,32}$")
 
-# Food payload limits
-MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB decoded
+# Food payload limits.
+# Frontend compresses to 640px / JPEG 0.5 → ~100–300 KB decoded.
+# We allow up to 400 KB to give a comfortable margin, and reject anything
+# larger with HTTP 413 before it reaches the LLM — protecting token budget
+# and preventing quota-slot abuse via oversized crafted payloads.
+MAX_IMAGE_BYTES = 400 * 1024  # 400 KB decoded
 
 # Razorpay configuration
 RZP_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")

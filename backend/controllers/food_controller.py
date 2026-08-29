@@ -21,7 +21,7 @@ async def analyze_food_image(body: AnalyzeBody) -> dict:
     except Exception:
         approx_bytes = 0
     if approx_bytes > MAX_IMAGE_BYTES:
-        raise HTTPException(413, "Image too large")
+        raise HTTPException(413, "Image too large (max 400 KB). Please use a closer crop or lower-resolution photo.")
 
     system = (
         "You are a nutrition estimator. Given a food photo, respond with STRICT JSON "

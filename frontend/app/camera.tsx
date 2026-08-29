@@ -18,12 +18,28 @@
     const [flash, setFlash] = useState<"off" | "on" | "auto">("off");
 
     const goAnalyze = async (uri: string) => {
+      // Resize to 640px wide and compress to JPEG quality 0.5.
+      // This reliably produces ~100–300 KB base64, down from 4–8 MB for
+      // raw camera output — reducing LLM input tokens and upload latency.
       const manipulated = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: 800 } }],
-        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        [{ resize: { width: 640 } }],
+        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
       );
-      router.replace({ pathname: "/analyze", params: { b64: manipulated.base64 as string } });
+      const b64 = manipulated.base64 as string;
+
+      // Client-side guard: base64 string > ~467 KB means decoded image > 350 KB.
+      // Reject before sending so the user doesn't waste a quota slot on a
+      // payload the backend will reject with 413 anyway.
+      const approxDecodedKB = Math.round((b64.length * 3) / 4 / 1024);
+      if (approxDecodedKB > 400) {
+        // This should never happen given the resize above, but guard defensively.
+        alert(`Image is still too large (${approxDecodedKB} KB). Please try a closer crop.`);
+        setBusy(false);
+        return;
+      }
+
+      router.replace({ pathname: "/analyze", params: { b64 } });
     };
 
     const capture = async () => {
@@ -32,9 +48,10 @@
       try {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         const photo: any = await camRef.current.takePictureAsync({
-          quality: 0.5,
+          quality: 0.8,   // Capture at higher quality; goAnalyze will compress down
           base64: false,
-          skipProcessing: true,
+          // skipProcessing removed: on Android this bypasses OS compression and
+          // produces oversized raw frames that inflate the base64 payload.
         });
         if (!photo?.uri) throw new Error("Capture failed");
         await goAnalyze(photo.uri);
