@@ -74,7 +74,7 @@ export default function Subscribe() {
     );
   }
 
-  const priceRupees = ((sub?.amount_paise ?? 3900) / 100).toFixed(0);
+  const priceRupees = ((sub?.amount_paise ?? 5700) / 100).toFixed(0);
   const reasonLine =
     params.reason === "trial-ended"
       ? "Your free trial has ended. Subscribe to keep AI food scanning."
@@ -121,7 +121,7 @@ export default function Subscribe() {
         <View style={styles.features}>
           {[
             { i: "camera" as const, t: "AI food scan", s: "Snap a photo, get calories in seconds" },
-            { i: "images" as const, t: "Gallery import", s: "Analyze photos from your gallery" },
+            { i: "sparkles" as const, t: "Monthly 500 clicks", s: "Snap & analyze up to 500 meals per month" },
             { i: "flame" as const, t: "Smart calorie coach", s: "Deficit / on-track / over alerts" },
             { i: "trending-up" as const, t: "30-day history", s: "See progress against your goal" },
           ].map((f) => (

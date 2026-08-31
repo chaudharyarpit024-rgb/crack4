@@ -53,7 +53,7 @@ if not PUBLIC_API_URL:
         "will fail at runtime. Set PUBLIC_API_URL in your .env file."
     )
 MOBILE_RETURN_URL = os.environ.get("MOBILE_RETURN_URL", "crack://razorpay-complete")
-SUB_AMOUNT_PAISE = int(os.environ.get("SUBSCRIPTION_AMOUNT_PAISE", 3900))
+SUB_AMOUNT_PAISE = int(os.environ.get("SUBSCRIPTION_AMOUNT_PAISE", 5700))
 TRIAL_DAYS = int(os.environ.get("SUBSCRIPTION_TRIAL_DAYS", 10))
 RZP_LIVE = bool(RZP_KEY_ID) and not RZP_KEY_ID.endswith("placeholder")
 RZP_WEBHOOK_LIVE = bool(RZP_WEBHOOK_SECRET) and "placeholder" not in RZP_WEBHOOK_SECRET.lower()

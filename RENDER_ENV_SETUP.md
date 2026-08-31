@@ -42,7 +42,7 @@ RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxxxx
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret_here
 RAZORPAY_WEBHOOK_SECRET=your_razorpay_webhook_secret_here
 RAZORPAY_PLAN_ID=plan_xxxxxxxxxxxxxx
-SUBSCRIPTION_AMOUNT_PAISE=3900
+SUBSCRIPTION_AMOUNT_PAISE=5700
 SUBSCRIPTION_TRIAL_DAYS=10
 
 # Email & Verification (Brevo / SMTP)
@@ -79,7 +79,7 @@ RESEND_MIN_INTERVAL_SECONDS=60
 - **`RAZORPAY_KEY_SECRET`**: Private Razorpay Key Secret.
 - **`RAZORPAY_WEBHOOK_SECRET`**: Webhook secret to verify incoming event signatures at `/api/subscriptions/webhook`.
 - **`RAZORPAY_PLAN_ID`**: Recurring subscription Plan ID created in your Razorpay Dashboard.
-- **`SUBSCRIPTION_AMOUNT_PAISE`**: Price in paise (`3900` = ₹39.00).
+- **`SUBSCRIPTION_AMOUNT_PAISE`**: Price in paise (`5700` = ₹57.00).
 - **`SUBSCRIPTION_TRIAL_DAYS`**: Free trial period duration in days (`10`).
 
 ### Email & Verification

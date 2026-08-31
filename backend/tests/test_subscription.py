@@ -69,7 +69,7 @@ class TestTrialProvisioning:
         assert d["paid_active"] is False
         assert d["days_left"] in (9, 10), f"days_left={d['days_left']}"
         assert d["rzp_configured"] is True, "Real Razorpay keys expected"
-        assert d["amount_paise"] == 3900
+        assert d["amount_paise"] == 5700
         assert d["currency"] == "INR"
 
 
@@ -85,7 +85,7 @@ class TestCheckoutLive:
         d = r.json()
         assert "subscription_id" in d and d["subscription_id"].startswith("sub_"), d
         assert "key_id" in d and d["key_id"].startswith("rzp_test_"), d
-        assert d["amount_paise"] == 3900
+        assert d["amount_paise"] == 5700
         # stash for idempotency check
         pytest.first_sub_id = d["subscription_id"]
 

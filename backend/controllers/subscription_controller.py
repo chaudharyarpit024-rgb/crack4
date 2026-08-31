@@ -136,7 +136,7 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
 <body>
 <div class="brand">CRACK</div>
 <div class="tag">Premium</div>
-<div class="price">₹39<span style="font-size:16px;color:#6B7280;">/month</span></div>
+<div class="price">₹57<span style="font-size:16px;color:#6B7280;">/month</span></div>
 <div class="sub">10 days free · billed after trial · UPI Autopay</div>
 <button id="pay">Continue to payment</button>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
@@ -146,7 +146,7 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
       key: {js_str(RZP_KEY_ID)},
       subscription_id: {js_str(subscription_id)},
       name: 'CRACK',
-      description: 'Premium — 10-day free trial, then Rs.39/month',
+      description: 'Premium — 10-day free trial, then Rs.57/month',
       callback_url: {js_str((PUBLIC_API_URL or '') + '/api/subscription/callback')},
       theme: {{ color: '#E05D36' }}
     }};
