@@ -22,7 +22,7 @@
         "backgroundColor": "#000000"
       },
 
-      "package": "com.emergent.crack",
+      "package": "com.anetra.crack_track_it",
       "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",

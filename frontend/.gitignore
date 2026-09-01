@@ -30,6 +30,7 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+KEYSTORE_INFO.md
 
 # local env files – never commit secrets
 .env
