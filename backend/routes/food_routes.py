@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, Request
 from models.food import AnalyzeBody, FoodLogBody
 from security.dependencies import current_user, enforce_quota
@@ -9,7 +10,9 @@ from controllers.food_controller import (
     get_today_food_logs,
     get_food_history,
     delete_food_log,
+    get_user_streak,
 )
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/food", tags=["food"])
@@ -80,3 +83,13 @@ async def delete_log(
     user: dict = Depends(current_user),
 ):
     return await delete_food_log(user, item_id)
+
+
+@router.get("/streak")
+async def get_streak(
+    client_date: Optional[str] = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Client local date YYYY-MM-DD"),
+    timezone: Optional[str] = Query(default=None, max_length=64, description="Client IANA timezone name (e.g. Asia/Kolkata)"),
+    user: dict = Depends(current_user),
+):
+    return await get_user_streak(user, client_date=client_date, client_tz=timezone)
+

@@ -14,7 +14,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { colors, spacing, radius } from "@/src/theme";
 import { api } from "@/src/api";
+
 import { User } from "@/src/auth";
+import { StreakCard } from "@/src/components/StreakCard";
+import { StreakData } from "@/src/streak";
+
 
 type LogItem = {
   id: string;
@@ -70,21 +74,25 @@ export default function Home() {
   const [total, setTotal] = useState(0);
   const [protein, setProtein] = useState(0);
   const [sub, setSub] = useState<Sub | null>(null);
+  const [streak, setStreak] = useState<StreakData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [u, t, s] = await Promise.all([
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const [u, t, s, streakRes] = await Promise.all([
         api<User>("/auth/me"),
         api<{ items: LogItem[]; total_calories: number; total_protein_g: number }>("/food/today"),
         api<Sub>("/subscription/me"),
+        api<StreakData>(`/food/streak?timezone=${encodeURIComponent(tz || "")}`).catch(() => null),
       ]);
       setMe(u);
       setItems(t.items);
       setTotal(t.total_calories);
       setProtein(t.total_protein_g || 0);
       setSub(s);
+      if (streakRes) setStreak(streakRes);
     } catch (e) {
       // token invalid
       router.replace("/login");
@@ -92,7 +100,8 @@ export default function Home() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [router]);
+
 
   useFocusEffect(
     useCallback(() => {
@@ -173,7 +182,10 @@ export default function Home() {
           </View>
         </View>
 
+        <StreakCard data={streak} />
+
         <View style={styles.section}>
+
           <Text style={styles.sectionTitle}>You ate today</Text>
           {items.length === 0 ? (
             <View style={styles.empty}>

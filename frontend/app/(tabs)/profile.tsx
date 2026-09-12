@@ -14,6 +14,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius } from "@/src/theme";
 import { api } from "@/src/api";
 import { clearToken } from "@/src/api";
+import { StreakData } from "@/src/streak";
+
 
 const GOALS = [
   { key: "lose", label: "Lose" },
@@ -25,6 +27,7 @@ export default function Profile() {
   const router = useRouter();
   const [me, setMe] = useState<any>(null);
   const [days, setDays] = useState<any[]>([]);
+  const [streak, setStreak] = useState<StreakData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -34,21 +37,25 @@ export default function Profile() {
 
   const load = useCallback(async () => {
     try {
-      const [u, h] = await Promise.all([
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const [u, h, s] = await Promise.all([
         api<any>("/auth/me"),
         api<{ days: any[] }>("/food/history?days=30"),
+        api<StreakData>(`/food/streak?timezone=${encodeURIComponent(tz || "")}`).catch(() => null),
       ]);
       setMe(u);
       setGoal(u.goal || "");
       setWeight(u.weight_kg ? String(u.weight_kg) : "");
       setHeight(u.height_cm ? String(u.height_cm) : "");
       setDays(h.days);
+      if (s) setStreak(s);
     } catch {
       router.replace("/login");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
+
 
   useFocusEffect(
     useCallback(() => {
@@ -110,7 +117,30 @@ export default function Profile() {
           </View>
         </View>
 
+        <View style={styles.streakStatsRow} testID="profile-streak-stats">
+          <View style={styles.streakStatBox}>
+            <View style={styles.streakStatHeader}>
+              <Text style={styles.streakStatEmoji}>🔥</Text>
+              <Text style={styles.streakStatLabel}>Current Streak</Text>
+            </View>
+            <Text style={styles.streakStatValue} testID="profile-current-streak">
+              {streak?.current_streak ?? 0} <Text style={styles.streakStatUnit}>days</Text>
+            </Text>
+          </View>
+
+          <View style={styles.streakStatBox}>
+            <View style={styles.streakStatHeader}>
+              <Ionicons name="trophy" size={16} color="#D97706" />
+              <Text style={styles.streakStatLabel}>Best Streak</Text>
+            </View>
+            <Text style={styles.streakStatValue} testID="profile-best-streak">
+              {streak?.longest_streak ?? 0} <Text style={styles.streakStatUnit}>days</Text>
+            </Text>
+          </View>
+        </View>
+
         <Text style={styles.section}>Update your goal</Text>
+
         <View style={styles.goalRow}>
           {GOALS.map((g) => (
             <Pressable
@@ -335,4 +365,42 @@ const styles = StyleSheet.create({
   dayMeals: { fontSize: 12, color: colors.muted, marginTop: 2 },
   dayCal: { fontSize: 14, fontWeight: "700", color: colors.brand, marginRight: spacing.sm },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  streakStatsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  streakStatBox: {
+    flex: 1,
+    backgroundColor: "#FFF8F5",
+    borderWidth: 1.5,
+    borderColor: "#FDD8CE",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  streakStatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  streakStatEmoji: {
+    fontSize: 16,
+  },
+  streakStatLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.muted,
+  },
+  streakStatValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.onSurface,
+  },
+  streakStatUnit: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.muted,
+  },
 });
+

@@ -10,6 +10,7 @@ from .verification import (
     mark_and_check_jti,
     can_resend,
 )
+from .streak import compute_user_streak
 
 __all__ = [
     "calorie_target",
@@ -24,4 +25,6 @@ __all__ = [
     "decode_verification_token",
     "mark_and_check_jti",
     "can_resend",
+    "compute_user_streak",
 ]
+

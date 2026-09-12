@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from fastapi import HTTPException
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
@@ -7,6 +8,8 @@ from database.mongodb import db
 from models.food import AnalyzeBody, FoodLogBody, AiAnalyzeResult
 from config.settings import EMERGENT_LLM_KEY, MAX_IMAGE_BYTES, logger
 from utils.json_parser import parse_json
+from utils.streak import compute_user_streak
+
 
 
 async def analyze_food_image(body: AnalyzeBody) -> dict:
@@ -88,7 +91,15 @@ async def create_food_log(user: dict, body: FoodLogBody) -> dict:
     except Exception:
         logger.exception("Database error while creating food log for user %s", user.get("id"))
         raise HTTPException(503, "Service temporarily unavailable. Please try again.")
-    return {k: v for k, v in entry.items() if k != "_id"}
+
+    result = {k: v for k, v in entry.items() if k != "_id"}
+    try:
+        streak_data = await compute_user_streak(user["id"])
+        result["streak"] = streak_data
+    except Exception as e:
+        logger.warning("Streak computation failed after log: %s", e)
+    return result
+
 
 
 
@@ -150,3 +161,17 @@ async def delete_food_log(user: dict, item_id: str) -> dict:
     if r.deleted_count == 0:
         raise HTTPException(404, "Not found")
     return {"ok": True}
+
+
+async def get_user_streak(
+    user: dict,
+    client_date: Optional[str] = None,
+    client_tz: Optional[str] = None,
+) -> dict:
+    """Retrieve streak statistics and 7-day rolling activity for the authenticated user."""
+    try:
+        return await compute_user_streak(user["id"], client_date, client_tz)
+    except Exception:
+        logger.exception("Database error while computing streak for user %s", user.get("id"))
+        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
+

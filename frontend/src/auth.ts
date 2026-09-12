@@ -12,7 +12,9 @@ export type User = {
   gender?: string | null;
   daily_target?: number | null;
   email_verified?: boolean;
+  longest_streak?: number | null;
 };
+
 
 export function useMe() {
   const [user, setUser] = useState<User | null>(null);

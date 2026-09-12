@@ -12,6 +12,7 @@ from .food_controller import (
     get_today_food_logs,
     get_food_history,
     delete_food_log,
+    get_user_streak,
 )
 from .subscription_controller import (
     get_my_subscription,
@@ -33,9 +34,11 @@ __all__ = [
     "get_today_food_logs",
     "get_food_history",
     "delete_food_log",
+    "get_user_streak",
     "get_my_subscription",
     "create_checkout_session",
     "render_checkout_page",
     "handle_subscription_callback",
     "handle_subscription_webhook",
 ]
+
