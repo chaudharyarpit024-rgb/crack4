@@ -10,7 +10,7 @@ type StreakCardProps = {
 };
 
 export function StreakCard({ data, loading }: StreakCardProps) {
-  if (loading || !data) {
+  if (loading) {
     return (
       <View style={styles.card} testID="streak-card-skeleton">
         <View style={styles.headerRow}>
@@ -22,6 +22,8 @@ export function StreakCard({ data, loading }: StreakCardProps) {
       </View>
     );
   }
+
+  if (!data) return null;
 
   const { current_streak, longest_streak, logged_today, streak_active, weekly_activity, message } = data;
 

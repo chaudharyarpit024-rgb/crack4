@@ -1,5 +1,6 @@
 import uuid
-from datetime import datetime, timezone, timedelta
+import zoneinfo
+from datetime import datetime, date, timezone, timedelta
 from typing import Optional
 from fastapi import HTTPException
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
@@ -71,7 +72,7 @@ async def analyze_food_image(body: AnalyzeBody) -> dict:
     return validated.model_dump()
 
 
-async def create_food_log(user: dict, body: FoodLogBody) -> dict:
+async def create_food_log(user: dict, body: FoodLogBody, client_tz: Optional[str] = None) -> dict:
     """Create a new food log entry from strictly validated input."""
     entry = {
         "id": str(uuid.uuid4()),
@@ -94,7 +95,7 @@ async def create_food_log(user: dict, body: FoodLogBody) -> dict:
 
     result = {k: v for k, v in entry.items() if k != "_id"}
     try:
-        streak_data = await compute_user_streak(user["id"])
+        streak_data = await compute_user_streak(user["id"], client_tz=client_tz)
         result["streak"] = streak_data
     except Exception as e:
         logger.warning("Streak computation failed after log: %s", e)
@@ -169,6 +170,16 @@ async def get_user_streak(
     client_tz: Optional[str] = None,
 ) -> dict:
     """Retrieve streak statistics and 7-day rolling activity for the authenticated user."""
+    if client_date:
+        try:
+            date.fromisoformat(client_date)
+        except ValueError:
+            raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD.")
+    if client_tz:
+        try:
+            zoneinfo.ZoneInfo(client_tz)
+        except (KeyError, zoneinfo.ZoneInfoNotFoundError):
+            raise HTTPException(400, f"Unknown timezone: {client_tz}")
     try:
         return await compute_user_streak(user["id"], client_date, client_tz)
     except Exception:

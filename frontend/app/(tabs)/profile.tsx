@@ -48,7 +48,7 @@ export default function Profile() {
       setWeight(u.weight_kg ? String(u.weight_kg) : "");
       setHeight(u.height_cm ? String(u.height_cm) : "");
       setDays(h.days);
-      if (s) setStreak(s);
+      setStreak(s);
     } catch {
       router.replace("/login");
     } finally {

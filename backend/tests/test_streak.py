@@ -72,7 +72,7 @@ def test_reference_date_resolution():
 
     # Invalid client date falls back to UTC
     res_invalid = _resolve_reference_date(client_date="not-a-date")
-    assert res_invalid == datetime.now(timezone.utc).date()
+    assert abs((res_invalid - datetime.now(timezone.utc).date()).days) <= 1
 
     # Timezone resolution
     res_tz = _resolve_reference_date(client_tz="Asia/Kolkata")

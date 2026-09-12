@@ -4,6 +4,7 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Optional, Set
 import zoneinfo
 
+
 from database.mongodb import db
 
 logger = logging.getLogger(__name__)
@@ -112,17 +113,62 @@ async def compute_user_streak(
     yesterday_date = ref_date - timedelta(days=1)
     yesterday_str = yesterday_date.isoformat()
 
-    # Fetch all food log timestamps for this user
-    cursor = db.food_logs.find({"user_id": user_id}, {"timestamp": 1, "_id": 0})
-    logs = await cursor.to_list(10000)
+    # Aggregate distinct activity dates directly from MongoDB.
+    # Eliminates the 10,000-record truncation cap and only transfers unique dates over the wire.
+    tz_str = target_tz.key if target_tz else "UTC"
+
+    pipeline = [
+        {
+            "$match": {
+                "user_id": user_id,
+                "timestamp": {"$exists": True, "$type": "string", "$ne": ""},
+            }
+        },
+        {
+            "$project": {
+                "date_str": {
+                    "$dateToString": {
+                        "format": "%Y-%m-%d",
+                        "date": {
+                            "$dateFromString": {
+                                "dateString": "$timestamp",
+                                "onError": None,
+                                "onNull": None,
+                            }
+                        },
+                        "timezone": tz_str,
+                    }
+                }
+            }
+        },
+        {
+            "$match": {
+                "date_str": {"$ne": None}
+            }
+        },
+        {
+            "$group": {
+                "_id": "$date_str"
+            }
+        },
+    ]
 
     logged_dates: Set[str] = set()
-    for log in logs:
-        ts = log.get("timestamp")
-        if ts:
-            d_str = _parse_timestamp_to_date_str(ts, target_tz)
-            if d_str:
-                logged_dates.add(d_str)
+    try:
+        cursor = db.food_logs.aggregate(pipeline)
+        async for doc in cursor:
+            if doc.get("_id"):
+                logged_dates.add(doc["_id"])
+    except Exception as e:
+        logger.warning("Distinct date aggregation failed for user %s: %s. Falling back to cursor iteration.", user_id, e)
+        # Fallback: stream via cursor with Python timezone conversion if MongoDB timezone DB throws
+        cursor = db.food_logs.find({"user_id": user_id}, {"timestamp": 1, "_id": 0})
+        async for log in cursor:
+            ts = log.get("timestamp")
+            if ts:
+                d_str = _parse_timestamp_to_date_str(ts, target_tz)
+                if d_str:
+                    logged_dates.add(d_str)
 
     logged_today = today_str in logged_dates
     logged_yesterday = yesterday_str in logged_dates
@@ -149,19 +195,19 @@ async def compute_user_streak(
     # Calculate longest streak across history
     historical_longest = calculate_longest_streak_from_dates(logged_dates)
 
-    # Sync with stored longest streak in db.users (ensures all-time records are never lost)
-    user_doc = await db.users.find_one({"id": user_id}, {"longest_streak": 1})
-    stored_longest = (user_doc or {}).get("longest_streak", 0) if user_doc else 0
-    longest_streak = max(historical_longest, stored_longest, current_streak)
-
-    if longest_streak > stored_longest:
-        try:
-            await db.users.update_one(
-                {"id": user_id},
-                {"$set": {"longest_streak": longest_streak}},
-            )
-        except Exception as e:
-            logger.warning("Failed to update longest_streak for user %s: %s", user_id, e)
+    # Atomically persist longest streak (MongoDB $max ensures no race condition)
+    best_computed = max(historical_longest, current_streak)
+    try:
+        result = await db.users.find_one_and_update(
+            {"id": user_id},
+            {"$max": {"longest_streak": best_computed}},
+            projection={"longest_streak": 1},
+            return_document=True,
+        )
+        longest_streak = (result or {}).get("longest_streak", best_computed)
+    except Exception as e:
+        logger.warning("Failed to update longest_streak for user %s: %s", user_id, e)
+        longest_streak = best_computed
 
     # Build 7-day rolling weekly activity window ending on ref_date
     day_letters = ["M", "T", "W", "T", "F", "S", "S"]

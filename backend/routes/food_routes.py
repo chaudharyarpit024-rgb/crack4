@@ -59,9 +59,10 @@ async def analyze_food(
 @router.post("/log")
 async def log_food(
     body: FoodLogBody,
+    timezone: Optional[str] = Query(default=None, max_length=64),
     user: dict = Depends(current_user),
 ):
-    return await create_food_log(user, body)
+    return await create_food_log(user, body, client_tz=timezone)
 
 
 @router.get("/today")

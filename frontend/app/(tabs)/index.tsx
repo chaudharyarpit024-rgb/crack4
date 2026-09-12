@@ -92,7 +92,7 @@ export default function Home() {
       setTotal(t.total_calories);
       setProtein(t.total_protein_g || 0);
       setSub(s);
-      if (streakRes) setStreak(streakRes);
+      setStreak(streakRes);
     } catch (e) {
       // token invalid
       router.replace("/login");
