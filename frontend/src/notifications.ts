@@ -103,12 +103,16 @@ export async function cancelStreakReminder(): Promise<void> {
 
 /** Check whether reminders are currently enabled. */
 export async function isReminderEnabled(): Promise<boolean> {
-  if (Platform.OS === "web") return false;
-  const val = await AsyncStorage.getItem(REMINDER_KEY);
-  if (val === "false") return false;
+  try {
+    if (Platform.OS === "web") return false;
+    const val = await AsyncStorage.getItem(REMINDER_KEY);
+    if (val === "false") return false;
 
-  const { status } = await Notifications.getPermissionsAsync();
-  return status === "granted";
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === "granted";
+  } catch {
+    return false;
+  }
 }
 
 /**

@@ -57,13 +57,17 @@ export default function Profile() {
       setHeight(u.height_cm ? String(u.height_cm) : "");
       setDays(h.days);
       setStreak(s);
-      const enabled = await isReminderEnabled();
-      setReminderOn(enabled);
     } catch {
       router.replace("/login");
+      return;
     } finally {
       setLoading(false);
     }
+
+    try {
+      const enabled = await isReminderEnabled();
+      setReminderOn(enabled);
+    } catch {}
   }, [router]);
 
 
