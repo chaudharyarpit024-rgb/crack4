@@ -6,10 +6,14 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
+import { initNotifications } from "@/src/notifications";
 
 LogBox.ignoreAllLogs(true);
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Initialize notification permissions + daily streak reminder on cold start.
+initNotifications().catch(() => {});
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();

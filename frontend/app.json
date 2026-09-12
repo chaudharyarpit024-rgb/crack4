@@ -57,6 +57,13 @@
         {
           "photosPermission": "Import food photos to estimate calories"
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#E05D36"
+        }
       ]
     ],
     "experiments": {

@@ -7,6 +7,7 @@ import {
   Pressable,
   TextInput,
   ActivityIndicator,
+  Switch,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +16,11 @@ import { colors, spacing, radius } from "@/src/theme";
 import { api } from "@/src/api";
 import { clearToken } from "@/src/api";
 import { StreakData } from "@/src/streak";
+import {
+  isReminderEnabled,
+  scheduleStreakReminder,
+  cancelStreakReminder,
+} from "@/src/notifications";
 
 
 const GOALS = [
@@ -30,6 +36,7 @@ export default function Profile() {
   const [streak, setStreak] = useState<StreakData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reminderOn, setReminderOn] = useState(true);
 
   const [goal, setGoal] = useState<string>("");
   const [weight, setWeight] = useState("");
@@ -49,6 +56,8 @@ export default function Profile() {
       setHeight(u.height_cm ? String(u.height_cm) : "");
       setDays(h.days);
       setStreak(s);
+      const enabled = await isReminderEnabled();
+      setReminderOn(enabled);
     } catch {
       router.replace("/login");
     } finally {
@@ -207,6 +216,27 @@ export default function Profile() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
 
+        <View style={styles.reminderRow} testID="reminder-toggle-row">
+          <View style={styles.reminderLeft}>
+            <Ionicons name="notifications-outline" size={18} color={colors.brand} />
+            <Text style={styles.reminderTxt}>Daily streak reminder</Text>
+          </View>
+          <Switch
+            testID="reminder-switch"
+            value={reminderOn}
+            onValueChange={async (val) => {
+              setReminderOn(val);
+              if (val) {
+                await scheduleStreakReminder();
+              } else {
+                await cancelStreakReminder();
+              }
+            }}
+            trackColor={{ false: colors.surface3, true: colors.brandSoft }}
+            thumbColor={reminderOn ? colors.brand : colors.muted}
+          />
+        </View>
+
         <View style={styles.legalRow}>
           <Pressable
             testID="link-terms"
@@ -334,6 +364,21 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   subRowTxt: { flex: 1, color: colors.brand, fontWeight: "700", fontSize: 15 },
+  reminderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: spacing.lg,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.md,
+    marginTop: spacing.sm,
+  },
+  reminderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  reminderTxt: { color: colors.onSurface2, fontWeight: "600", fontSize: 15 },
   legalRow: {
     flexDirection: "row",
     marginTop: spacing.md,
