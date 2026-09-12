@@ -37,6 +37,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reminderOn, setReminderOn] = useState(true);
+  const [reminderUpdating, setReminderUpdating] = useState(false);
 
   const [goal, setGoal] = useState<string>("");
   const [weight, setWeight] = useState("");
@@ -86,6 +87,28 @@ export default function Profile() {
       setMe(u);
     } catch {}
     setSaving(false);
+  };
+
+  const toggleReminder = async (val: boolean) => {
+    const prev = reminderOn;
+    setReminderOn(val);
+    setReminderUpdating(true);
+    try {
+      if (val) {
+        await scheduleStreakReminder();
+      } else {
+        await cancelStreakReminder();
+      }
+    } catch {
+      try {
+        const persisted = await isReminderEnabled();
+        setReminderOn(persisted);
+      } catch {
+        setReminderOn(prev);
+      }
+    } finally {
+      setReminderUpdating(false);
+    }
   };
 
   const logout = async () => {
@@ -224,14 +247,8 @@ export default function Profile() {
           <Switch
             testID="reminder-switch"
             value={reminderOn}
-            onValueChange={async (val) => {
-              setReminderOn(val);
-              if (val) {
-                await scheduleStreakReminder();
-              } else {
-                await cancelStreakReminder();
-              }
-            }}
+            disabled={reminderUpdating}
+            onValueChange={toggleReminder}
             trackColor={{ false: colors.surface3, true: colors.brandSoft }}
             thumbColor={reminderOn ? colors.brand : colors.muted}
           />

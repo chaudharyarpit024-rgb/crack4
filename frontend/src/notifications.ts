@@ -50,42 +50,65 @@ export async function ensureChannel() {
   }
 }
 
+let reminderUpdateQueue: Promise<unknown> = Promise.resolve();
+
+/** Serialize async reminder operations to prevent race conditions from concurrent updates. */
+export function serializeReminderUpdate<T>(fn: () => Promise<T>): Promise<T> {
+  const next = reminderUpdateQueue.catch(() => {}).then(fn);
+  reminderUpdateQueue = next.catch(() => {});
+  return next;
+}
+
 /** Schedule a daily repeating notification at 8 PM local time. */
-export async function scheduleStreakReminder() {
-  // Cancel any existing reminders first to avoid duplicates.
-  await Notifications.cancelAllScheduledNotificationsAsync();
+export async function scheduleStreakReminder(): Promise<void> {
+  return serializeReminderUpdate(async () => {
+    const granted = await requestPermissions();
+    if (!granted) {
+      throw new Error("Notification permission not granted");
+    }
 
-  const message =
-    REMINDER_MESSAGES[Math.floor(Math.random() * REMINDER_MESSAGES.length)];
+    await ensureChannel();
 
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "Crack — Track It First",
-      body: message,
-      sound: "default",
-      ...(Platform.OS === "android" && { channelId: "streak-reminder" }),
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: DEFAULT_HOUR,
-      minute: DEFAULT_MINUTE,
-    },
+    // Cancel any existing reminders first to avoid duplicates.
+    await Notifications.cancelAllScheduledNotificationsAsync();
+
+    const message =
+      REMINDER_MESSAGES[Math.floor(Math.random() * REMINDER_MESSAGES.length)];
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Crack — Track It First",
+        body: message,
+        sound: "default",
+        ...(Platform.OS === "android" && { channelId: "streak-reminder" }),
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: DEFAULT_HOUR,
+        minute: DEFAULT_MINUTE,
+      },
+    });
+
+    await AsyncStorage.setItem(REMINDER_KEY, "true");
   });
-
-  await AsyncStorage.setItem(REMINDER_KEY, "true");
 }
 
 /** Cancel all scheduled streak reminders. */
-export async function cancelStreakReminder() {
-  await Notifications.cancelAllScheduledNotificationsAsync();
-  await AsyncStorage.setItem(REMINDER_KEY, "false");
+export async function cancelStreakReminder(): Promise<void> {
+  return serializeReminderUpdate(async () => {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    await AsyncStorage.setItem(REMINDER_KEY, "false");
+  });
 }
 
 /** Check whether reminders are currently enabled. */
 export async function isReminderEnabled(): Promise<boolean> {
+  if (Platform.OS === "web") return false;
   const val = await AsyncStorage.getItem(REMINDER_KEY);
-  // Default to true (opt-in on first launch).
-  return val !== "false";
+  if (val === "false") return false;
+
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === "granted";
 }
 
 /**
