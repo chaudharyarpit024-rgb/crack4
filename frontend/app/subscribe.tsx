@@ -75,7 +75,11 @@ export default function Subscribe() {
     );
   }
 
-  const priceRupees = ((sub?.amount_paise ?? 5700) / 100).toFixed(0);
+  const amountPaise = sub?.amount_paise ?? 5700;
+  const priceRupees =
+    amountPaise % 100 === 0
+      ? (amountPaise / 100).toFixed(0)
+      : (amountPaise / 100).toFixed(2);
   const trialDays = sub?.trial_days ?? 21;
   const reasonLine =
     params.reason === "trial-ended"

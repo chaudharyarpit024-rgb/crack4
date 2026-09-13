@@ -116,6 +116,8 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
     def js_str(v: str) -> str:
         return json.dumps(v).replace("</", "<\\/")
 
+    price_str = f"{SUB_AMOUNT_PAISE // 100}" if SUB_AMOUNT_PAISE % 100 == 0 else f"{SUB_AMOUNT_PAISE / 100:.2f}"
+
     html = f"""<!doctype html>
 <html>
 <head>
@@ -136,7 +138,7 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
 <body>
 <div class="brand">CRACK</div>
 <div class="tag">Premium</div>
-<div class="price">₹{SUB_AMOUNT_PAISE // 100}<span style="font-size:16px;color:#6B7280;">/month</span></div>
+<div class="price">₹{price_str}<span style="font-size:16px;color:#6B7280;">/month</span></div>
 <div class="sub">{TRIAL_DAYS} days free · billed after trial · UPI Autopay</div>
 <button id="pay">Continue to payment</button>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
@@ -146,7 +148,7 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
       key: {js_str(RZP_KEY_ID)},
       subscription_id: {js_str(subscription_id)},
       name: 'CRACK',
-      description: {js_str(f'Premium — {TRIAL_DAYS}-day free trial, then Rs.{SUB_AMOUNT_PAISE // 100}/month')},
+      description: {js_str(f'Premium — {TRIAL_DAYS}-day free trial, then Rs.{price_str}/month')},
       callback_url: {js_str((PUBLIC_API_URL or '') + '/api/subscription/callback')},
       theme: {{ color: '#E05D36' }}
     }};
