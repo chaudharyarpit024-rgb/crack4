@@ -43,7 +43,7 @@ RAZORPAY_KEY_SECRET=your_razorpay_key_secret_here
 RAZORPAY_WEBHOOK_SECRET=your_razorpay_webhook_secret_here
 RAZORPAY_PLAN_ID=plan_xxxxxxxxxxxxxx
 SUBSCRIPTION_AMOUNT_PAISE=5700
-SUBSCRIPTION_TRIAL_DAYS=10
+SUBSCRIPTION_TRIAL_DAYS=21
 
 # Email & Verification (Brevo / SMTP)
 SMTP_DRY_RUN=0
@@ -80,7 +80,7 @@ RESEND_MIN_INTERVAL_SECONDS=60
 - **`RAZORPAY_WEBHOOK_SECRET`**: Webhook secret to verify incoming event signatures at `/api/subscriptions/webhook`.
 - **`RAZORPAY_PLAN_ID`**: Recurring subscription Plan ID created in your Razorpay Dashboard.
 - **`SUBSCRIPTION_AMOUNT_PAISE`**: Price in paise (`5700` = ₹57.00).
-- **`SUBSCRIPTION_TRIAL_DAYS`**: Free trial period duration in days (`10`).
+- **`SUBSCRIPTION_TRIAL_DAYS`**: Free trial period duration in days (`21`).
 
 ### Email & Verification
 - **`SMTP_DRY_RUN`**: Set to `0` for production so emails actually send. If `1`, emails are simulated and logged to container output.

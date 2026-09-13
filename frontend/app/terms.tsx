@@ -23,7 +23,7 @@ const SECTIONS: { h: string; b: string }[] = [
   },
   {
     h: "5. Subscription & Billing",
-    b: "New accounts receive a 10‑day free trial of Premium features (AI food scan). After the trial, Premium is billed at ₹57 per month via Razorpay UPI Autopay (or supported card mandates). You may cancel anytime; access continues until the end of the paid period. Prices, features, and terms are subject to change with notice.",
+    b: "New accounts receive a complimentary free trial of Premium features (AI food scan) as indicated in the app at registration. After the trial, Premium is billed at ₹57 per month via Razorpay UPI Autopay (or supported card mandates). You may cancel anytime; access continues until the end of the paid period. Prices, features, and terms are subject to change with notice.",
   },
   {
     h: "6. Payments & Refunds",

@@ -26,6 +26,7 @@ type Sub = {
   amount_paise: number;
   currency: string;
   rzp_configured: boolean;
+  trial_days?: number;
 };
 
 export default function Subscribe() {
@@ -75,6 +76,7 @@ export default function Subscribe() {
   }
 
   const priceRupees = ((sub?.amount_paise ?? 5700) / 100).toFixed(0);
+  const trialDays = sub?.trial_days ?? 21;
   const reasonLine =
     params.reason === "trial-ended"
       ? "Your free trial has ended. Subscribe to keep AI food scanning."
@@ -113,7 +115,7 @@ export default function Subscribe() {
           </View>
           <View style={styles.trialTag}>
             <Ionicons name="gift" size={14} color={colors.brand} />
-            <Text style={styles.trialTagTxt}>10-day free trial</Text>
+            <Text style={styles.trialTagTxt}>{`${trialDays}-day free trial`}</Text>
           </View>
           <Text style={styles.priceSub}>UPI Autopay · cancel anytime</Text>
         </View>
@@ -159,7 +161,7 @@ export default function Subscribe() {
               <>
                 <Ionicons name="lock-open" size={18} color={colors.onBrand} />
                 <Text style={styles.ctaTxt}>
-                  {sub?.trial_active ? "Continue with premium" : "Start 10-day free trial"}
+                  {sub?.trial_active ? "Continue with premium" : `Start ${trialDays}-day free trial`}
                 </Text>
               </>
             )}

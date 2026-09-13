@@ -59,7 +59,7 @@ def make_food_b64():
 
 # ---- 1. Auto-provisioning trial on signup (rzp_configured=True now) ----
 class TestTrialProvisioning:
-    def test_signup_creates_10day_trial(self, s, fresh_user):
+    def test_signup_creates_trial(self, s, fresh_user):
         r = s.get(f"{API}/subscription/me", headers=auth_h(fresh_user["token"]), timeout=15)
         assert r.status_code == 200, r.text
         d = r.json()
@@ -67,7 +67,8 @@ class TestTrialProvisioning:
         assert d["trial_active"] is True
         assert d["active"] is True
         assert d["paid_active"] is False
-        assert d["days_left"] in (9, 10), f"days_left={d['days_left']}"
+        trial_days = d.get("trial_days", 21)
+        assert d["days_left"] in (trial_days - 1, trial_days), f"days_left={d['days_left']}"
         assert d["rzp_configured"] is True, "Real Razorpay keys expected"
         assert d["amount_paise"] == 5700
         assert d["currency"] == "INR"

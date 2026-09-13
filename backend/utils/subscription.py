@@ -101,6 +101,7 @@ def sub_public(sub: dict) -> dict:
         "amount_paise": SUB_AMOUNT_PAISE,
         "currency": "INR",
         "rzp_configured": RZP_LIVE,
+        "trial_days": TRIAL_DAYS,
         "requests_used": used,
         "requests_limit": limit,
         "requests_remaining": max(0, limit - used),
