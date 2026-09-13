@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing, radius } from "@/src/theme";
 import { api } from "@/src/api";
+import { startVerificationCooldown } from "@/src/utils/verificationCooldown";
 
 export default function Signup() {
   const router = useRouter();
@@ -40,6 +41,7 @@ export default function Signup() {
         body: { email, password, name },
         auth: false,
       });
+      await startVerificationCooldown(email, 60);
       router.replace({ pathname: "/check-email" as any, params: { email } });
     } catch (e: any) {
       if (e.status === 400) {

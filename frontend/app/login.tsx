@@ -14,6 +14,10 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing, radius } from "@/src/theme";
 import { api, setToken } from "@/src/api";
+import {
+  startVerificationCooldown,
+  getVerificationCooldownSync,
+} from "@/src/utils/verificationCooldown";
 
 export default function Login() {
   const router = useRouter();
@@ -29,10 +33,14 @@ export default function Login() {
   useEffect(() => {
     if (cooldown <= 0) return;
     const interval = setInterval(() => {
-      setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+      const remaining = getVerificationCooldownSync(email);
+      setCooldown(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 500);
     return () => clearInterval(interval);
-  }, [cooldown]);
+  }, [cooldown, email]);
 
   const submit = async () => {
     if (!email || !password) {
@@ -57,6 +65,10 @@ export default function Login() {
       if (e.status === 403) {
         setErr("Email not verified. Check your inbox for the verification link.");
         setNeedsVerification(true);
+        const remaining = getVerificationCooldownSync(email);
+        if (remaining > 0) {
+          setCooldown(remaining);
+        }
       } else {
         setErr(e.message || "Login failed");
         setNeedsVerification(false);
@@ -67,7 +79,7 @@ export default function Login() {
   };
 
   const resendVerification = async () => {
-    if (!email || cooldown > 0) return;
+    if (!email || cooldown > 0 || resending) return;
     setResending(true);
     setResendMsg("");
     try {
@@ -79,11 +91,12 @@ export default function Login() {
           auth: false,
         }
       );
+      const retrySec = res.retry_after && res.retry_after > 0 ? res.retry_after : 60;
+      await startVerificationCooldown(email, retrySec);
+      setCooldown(retrySec);
       if (res.cooldown && res.retry_after) {
-        setCooldown(res.retry_after);
         setResendMsg(res.message || `Please wait ${res.retry_after}s before requesting a new link.`);
       } else {
-        setCooldown(60);
         setResendMsg("Verification email sent! Please check your inbox and spam folder.");
       }
     } catch (e: any) {
@@ -149,14 +162,15 @@ export default function Login() {
               disabled={resending || cooldown > 0}
               style={({ pressed }) => [
                 styles.btnSecondary,
-                (pressed || resending || cooldown > 0) && { opacity: 0.7 },
+                cooldown > 0 && styles.btnSecondaryCooldown,
+                (pressed || resending) && cooldown <= 0 && { opacity: 0.7 },
               ]}
             >
               {resending ? (
-                <ActivityIndicator color={colors.brand} />
+                <ActivityIndicator color={cooldown > 0 ? colors.muted : colors.brand} />
               ) : (
-                <Text style={styles.btnSecondaryTxt}>
-                  {cooldown > 0 ? `Resend email in ${cooldown}s` : "Resend verification email"}
+                <Text style={[styles.btnSecondaryTxt, cooldown > 0 && styles.btnSecondaryCooldownTxt]}>
+                  {cooldown > 0 ? `Send again in ${cooldown}s` : "Resend verification email"}
                 </Text>
               )}
             </Pressable>
@@ -240,6 +254,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   btnSecondaryTxt: { color: colors.brand, fontSize: 15, fontWeight: "700" },
+  btnSecondaryCooldown: {
+    borderColor: colors.border,
+    backgroundColor: colors.surface2,
+  },
+  btnSecondaryCooldownTxt: {
+    color: colors.muted,
+    fontWeight: "600",
+  },
   forgotWrap: { alignSelf: "flex-end", marginTop: spacing.sm, paddingVertical: 4 },
   forgotTxt: { color: colors.brand, fontSize: 13, fontWeight: "600" },
   err: { color: colors.error, marginTop: spacing.md, fontSize: 13 },
