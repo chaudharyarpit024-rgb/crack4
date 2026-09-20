@@ -17,19 +17,29 @@ from config.settings import (
     TRIAL_DAYS,
     logger,
 )
-from utils.subscription import ensure_trial, sub_public, reset_monthly_usage
+from utils.subscription import ensure_trial, sub_public, reset_monthly_usage, is_unlimited_email
 from utils.razorpay_client import razorpay_req
 from security.signatures import verify_payment_signature, verify_webhook_signature
 
 
 async def get_my_subscription(user: dict) -> dict:
     """Return public subscription state for the user."""
+    is_unlimited = await is_unlimited_email(user.get("email"))
     sub = await ensure_trial(user["id"])
-    return sub_public(sub)
+    return sub_public(sub, is_unlimited=is_unlimited)
 
 
 async def create_checkout_session(user: dict) -> dict:
-    """Create a Razorpay subscription with 10-day free trial (via start_at)."""
+    """Create a Razorpay subscription with free trial (via start_at)."""
+    is_unlimited = await is_unlimited_email(user.get("email"))
+    if is_unlimited:
+        return {
+            "subscription_id": "unlimited_vip",
+            "is_unlimited": True,
+            "amount_paise": 0,
+            "message": "Your account already has permanent unlimited VIP access.",
+        }
+
     if not RZP_LIVE:
         logger.warning("Checkout requested but Razorpay is not configured")
         raise HTTPException(

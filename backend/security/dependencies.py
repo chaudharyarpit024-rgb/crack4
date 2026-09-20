@@ -9,6 +9,7 @@ from utils.subscription import (
     sub_public,
     try_consume_trial_request,
     try_consume_paid_request,
+    is_unlimited_email,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,19 +51,22 @@ async def require_active_subscription(
     user: dict = Depends(current_user),
 ) -> dict:
     """
-    FastAPI dependency ensuring the authenticated user has an active trial or paid subscription.
+    FastAPI dependency ensuring the authenticated user has an active trial or paid subscription,
+    or permanent unlimited VIP access.
 
     Stores the raw subscription doc on request.state so that enforce_quota (which is always
     chained after this dependency) can re-use it without a second database round trip.
     """
+    is_unlimited = await is_unlimited_email(user.get("email"))
     sub = await ensure_trial(user["id"])
-    pub = sub_public(sub)
+    pub = sub_public(sub, is_unlimited=is_unlimited)
     if not pub["active"]:
         raise HTTPException(402, "Subscription required. Your free trial has ended.")
 
     # Cache on request.state so downstream dependencies don't re-fetch.
     request.state.sub = sub
     request.state.sub_pub = pub
+    request.state.is_unlimited = is_unlimited
     return user
 
 
@@ -74,6 +78,8 @@ async def enforce_quota(
     Reserves one AI scan request against the user's quota BEFORE the expensive
     analysis work runs, so concurrent requests can't all slip through before any
     of them registers a count.
+
+    Users with unlimited access bypass quota enforcement completely.
 
     Security properties:
       • user["id"] comes only from the verified JWT — a client cannot spoof another
@@ -87,6 +93,16 @@ async def enforce_quota(
       • subscription status == active/authenticated (blocks lapsed/cancelled users)
       • current billing period has not ended (blocks users who haven't renewed)
     """
+    is_unlimited = getattr(request.state, "is_unlimited", False)
+    if not is_unlimited:
+        is_unlimited = await is_unlimited_email(user.get("email"))
+
+    if is_unlimited:
+        request.state.user_id = user["id"]
+        request.state.is_paid = True
+        request.state.is_unlimited = True
+        return user
+
     # Re-use the subscription fetched by require_active_subscription — no second DB hit.
     sub = getattr(request.state, "sub", None)
     pub = getattr(request.state, "sub_pub", None)

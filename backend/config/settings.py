@@ -120,6 +120,13 @@ ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_RAW.split(",") if o
 TRIAL_DAILY_MAX_REQUESTS = int(os.environ.get("TRIAL_DAILY_MAX_REQUESTS", "5"))
 PAID_MONTHLY_MAX_REQUESTS = int(os.environ.get("PAID_MONTHLY_MAX_REQUESTS", "500"))
 
+# Unlimited access emails: comma-separated list of emails with permanent unlimited AI scan quotas & active subscription
+UNLIMITED_ACCESS_EMAILS_RAW = os.environ.get("UNLIMITED_ACCESS_EMAILS", "")
+UNLIMITED_ACCESS_EMAILS = {
+    e.strip().lower() for e in UNLIMITED_ACCESS_EMAILS_RAW.split(",") if e.strip()
+}
+
 # Logger setup
 logger = logging.getLogger("crack")
+
 

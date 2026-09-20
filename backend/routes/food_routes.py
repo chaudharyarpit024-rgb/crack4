@@ -42,13 +42,15 @@ async def analyze_food(
             try:
                 # Use getattr with defaults: enforce_quota always sets these before
                 # the route body runs, but be defensive against future refactors.
-                is_paid = getattr(request.state, "is_paid", False)
-                user_id = getattr(request.state, "user_id", None)
-                if user_id:
-                    if is_paid:
-                        await refund_paid_request(user_id)
-                    else:
-                        await refund_trial_request(user_id)
+                is_unlimited = getattr(request.state, "is_unlimited", False)
+                if not is_unlimited:
+                    is_paid = getattr(request.state, "is_paid", False)
+                    user_id = getattr(request.state, "user_id", None)
+                    if user_id:
+                        if is_paid:
+                            await refund_paid_request(user_id)
+                        else:
+                            await refund_trial_request(user_id)
             except Exception:
                 # Refund failure must not mask the original error the client sees.
                 user_id_str = str(getattr(request.state, "user_id", "unknown")).replace("\n", "\\n").replace("\r", "\\r")

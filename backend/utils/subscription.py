@@ -8,12 +8,50 @@ from config.settings import (
     RZP_LIVE,
     TRIAL_DAILY_MAX_REQUESTS,
     PAID_MONTHLY_MAX_REQUESTS,
+    UNLIMITED_ACCESS_EMAILS,
     logger,
 )
 
 # Razorpay statuses that mean the user has an active paid subscription.
 # Keep this in sync with the status_map in subscription_controller.py.
 _PAID_ACTIVE_STATUSES = {"authenticated", "active"}
+
+
+async def is_unlimited_email(email: Optional[str]) -> bool:
+    """Check if the given email has permanent unlimited access.
+
+    Returns True if:
+      1. Email is in UNLIMITED_ACCESS_EMAILS (from .env/settings)
+      2. Or email exists in db.unlimited_emails collection
+      3. Or user document has is_unlimited == True
+    """
+    if not email or not isinstance(email, str):
+        return False
+    norm_email = email.strip().lower()
+    if not norm_email:
+        return False
+
+    # 1. Check settings / env
+    if norm_email in UNLIMITED_ACCESS_EMAILS:
+        return True
+
+    # 2. Check MongoDB unlimited_emails collection
+    try:
+        doc = await db.unlimited_emails.find_one({"email": norm_email})
+        if doc:
+            return True
+    except Exception:
+        logger.exception("Error checking unlimited_emails collection for %s", norm_email)
+
+    # 3. Check db.users is_unlimited flag
+    try:
+        u = await db.users.find_one({"email": norm_email}, {"_id": 0, "is_unlimited": 1})
+        if u and u.get("is_unlimited"):
+            return True
+    except Exception:
+        logger.exception("Error checking user is_unlimited flag for %s", norm_email)
+
+    return False
 
 
 async def ensure_trial(user_id: str) -> dict:
@@ -59,8 +97,30 @@ async def ensure_trial(user_id: str) -> dict:
         }
 
 
-def sub_public(sub: dict) -> dict:
+def sub_public(sub: dict, is_unlimited: bool = False) -> dict:
     """Compute derived subscription and trial status fields for the client."""
+    is_unlimited = is_unlimited or sub.get("is_unlimited", False) or sub.get("status") == "unlimited"
+
+    if is_unlimited:
+        total_used = sub.get("trial_requests_used", 0) + sub.get("monthly_requests_used", 0)
+        return {
+            "status": "unlimited",
+            "active": True,
+            "trial_active": False,
+            "paid_active": True,
+            "is_unlimited": True,
+            "trial_ends_at": None,
+            "days_left": None,
+            "razorpay_subscription_id": sub.get("razorpay_subscription_id"),
+            "amount_paise": 0,
+            "currency": "INR",
+            "rzp_configured": RZP_LIVE,
+            "trial_days": TRIAL_DAYS,
+            "requests_used": total_used,
+            "requests_limit": None,
+            "requests_remaining": None,
+        }
+
     status = sub.get("status", "none")
     trial_ends_at = sub.get("trial_ends_at")
     now = datetime.now(timezone.utc)
@@ -95,6 +155,7 @@ def sub_public(sub: dict) -> dict:
         "active": active,
         "trial_active": trial_active,
         "paid_active": paid_active,
+        "is_unlimited": False,
         "trial_ends_at": trial_ends_at,
         "days_left": days_left,
         "razorpay_subscription_id": sub.get("razorpay_subscription_id"),
@@ -106,6 +167,7 @@ def sub_public(sub: dict) -> dict:
         "requests_limit": limit,
         "requests_remaining": max(0, limit - used),
     }
+
 
 
 # ---------------------------------------------------------------------------

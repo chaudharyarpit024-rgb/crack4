@@ -21,6 +21,7 @@ type Sub = {
   active: boolean;
   trial_active: boolean;
   paid_active: boolean;
+  is_unlimited?: boolean;
   trial_ends_at?: string | null;
   days_left: number;
   amount_paise: number;
@@ -111,23 +112,40 @@ export default function Subscribe() {
         <Text style={styles.title}>Track smarter.{"\n"}Snap. Scan. Log.</Text>
         <Text style={styles.sub}>{reasonLine}</Text>
 
-        <View style={styles.priceCard} testID="price-card">
-          <View style={styles.priceRow}>
-            <Text style={styles.priceCurrency}>₹</Text>
-            <Text style={styles.priceVal}>{priceRupees}</Text>
-            <Text style={styles.priceUnit}>/month</Text>
+        {sub?.is_unlimited ? (
+          <View style={styles.priceCard} testID="price-card">
+            <View style={styles.priceRow}>
+              <Text style={styles.priceVal}>VIP</Text>
+            </View>
+            <View style={styles.trialTag}>
+              <Ionicons name="infinite" size={16} color={colors.brand} />
+              <Text style={styles.trialTagTxt}>Lifetime Unlimited Access</Text>
+            </View>
+            <Text style={styles.priceSub}>No quotas · all premium features unlocked</Text>
           </View>
-          <View style={styles.trialTag}>
-            <Ionicons name="gift" size={14} color={colors.brand} />
-            <Text style={styles.trialTagTxt}>{`${trialDays}-day free trial`}</Text>
+        ) : (
+          <View style={styles.priceCard} testID="price-card">
+            <View style={styles.priceRow}>
+              <Text style={styles.priceCurrency}>₹</Text>
+              <Text style={styles.priceVal}>{priceRupees}</Text>
+              <Text style={styles.priceUnit}>/month</Text>
+            </View>
+            <View style={styles.trialTag}>
+              <Ionicons name="gift" size={14} color={colors.brand} />
+              <Text style={styles.trialTagTxt}>{`${trialDays}-day free trial`}</Text>
+            </View>
+            <Text style={styles.priceSub}>UPI Autopay · cancel anytime</Text>
           </View>
-          <Text style={styles.priceSub}>UPI Autopay · cancel anytime</Text>
-        </View>
+        )}
 
         <View style={styles.features}>
           {[
             { i: "camera" as const, t: "AI food scan", s: "Snap a photo, get calories in seconds" },
-            { i: "sparkles" as const, t: "Monthly 500 clicks", s: "Snap & analyze up to 500 meals per month" },
+            {
+              i: "sparkles" as const,
+              t: sub?.is_unlimited ? "Unlimited AI scans" : "Monthly 500 clicks",
+              s: sub?.is_unlimited ? "Snap & analyze meals with no monthly quota" : "Snap & analyze up to 500 meals per month",
+            },
             { i: "flame" as const, t: "Smart calorie coach", s: "Deficit / on-track / over alerts" },
             { i: "trending-up" as const, t: "30-day history", s: "See progress against your goal" },
           ].map((f) => (
@@ -147,7 +165,12 @@ export default function Subscribe() {
           <Text style={styles.err} testID="sub-error">{err}</Text>
         ) : null}
 
-        {sub?.paid_active ? (
+        {sub?.is_unlimited ? (
+          <View style={styles.activeCard} testID="unlimited-active-card">
+            <Ionicons name="sparkles" size={22} color={colors.brand} />
+            <Text style={styles.activeTxt}>Unlimited VIP Access Active</Text>
+          </View>
+        ) : sub?.paid_active ? (
           <View style={styles.activeCard}>
             <Ionicons name="checkmark-circle" size={22} color={colors.success} />
             <Text style={styles.activeTxt}>Subscription active</Text>

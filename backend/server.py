@@ -9,6 +9,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 import secrets
 import traceback
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, Header, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -58,11 +59,20 @@ from controllers import (
     handle_subscription_webhook,
 )
 
+# Modern lifecycle manager: connects on startup, gracefully disconnects on shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+    await close_db()
+
+
 # App instance — defined once; do NOT re-instantiate below this line.
 app = FastAPI(
     title="CRACK Backend",
     description="Clean, modular, and secure backend API for CRACK diet & nutrition tracking",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------
@@ -154,18 +164,6 @@ async def awake_checkpoint(x_wakeup_key: str = Header(None)):
     return {"status": "awake", "ok": True}
 
 
-# ---------------------------------------------------------------------------
-# Lifecycle hooks
-# ---------------------------------------------------------------------------
-
-@app.on_event("startup")
-async def on_startup():
-    await init_db()
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    await close_db()
 
 
 __all__ = [
