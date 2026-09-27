@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { colors, spacing, radius } from "@/src/theme";
 import { api } from "@/src/api";
+import { isNetworkError, isAuthError } from "@/src/utils/network";
 
 import { User } from "@/src/auth";
 import { StreakCard } from "@/src/components/StreakCard";
@@ -93,9 +94,16 @@ export default function Home() {
       setProtein(t.total_protein_g || 0);
       setSub(s);
       setStreak(streakRes);
-    } catch (e) {
-      // token invalid
-      router.replace("/login");
+    } catch (e: any) {
+      if (isNetworkError(e)) {
+        router.replace("/network-error");
+      } else if (isAuthError(e)) {
+        router.replace("/session-expired");
+      } else if (e?.status && e.status >= 500) {
+        router.replace("/server-error");
+      } else {
+        router.replace("/login");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

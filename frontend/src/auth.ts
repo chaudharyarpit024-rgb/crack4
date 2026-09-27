@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, clearToken } from "./api";
+import { isNetworkError } from "./utils/network";
 
 export type User = {
   id: string;
@@ -19,13 +20,24 @@ export type User = {
 export function useMe() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  /** `true` when the last fetch failed due to a network issue. */
+  const [networkError, setNetworkError] = useState(false);
 
   const refresh = async () => {
     try {
       const u = await api<User>("/auth/me");
       setUser(u);
-    } catch {
-      setUser(null);
+      setNetworkError(false);
+    } catch (err) {
+      if (isNetworkError(err)) {
+        // Network failure — do NOT clear user state.
+        // The user is still authenticated; we just can't reach the server.
+        setNetworkError(true);
+      } else {
+        // Genuine auth failure or other error — user is not logged in.
+        setUser(null);
+        setNetworkError(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -40,5 +52,5 @@ export function useMe() {
     setUser(null);
   };
 
-  return { user, loading, refresh, logout, setUser };
+  return { user, loading, refresh, logout, setUser, networkError };
 }

@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius } from "@/src/theme";
 import { api } from "@/src/api";
 import { clearToken } from "@/src/api";
+import { isNetworkError, isAuthError } from "@/src/utils/network";
 import { StreakData } from "@/src/streak";
 import {
   isReminderEnabled,
@@ -57,8 +58,16 @@ export default function Profile() {
       setHeight(u.height_cm ? String(u.height_cm) : "");
       setDays(h.days);
       setStreak(s);
-    } catch {
-      router.replace("/login");
+    } catch (e: any) {
+      if (isNetworkError(e)) {
+        router.replace("/network-error");
+      } else if (isAuthError(e)) {
+        router.replace("/session-expired");
+      } else if (e?.status && e.status >= 500) {
+        router.replace("/server-error");
+      } else {
+        router.replace("/login");
+      }
       return;
     } finally {
       setLoading(false);
