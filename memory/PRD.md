@@ -1,33 +1,61 @@
-# CRACK - Diet Tracking App
+# CRACK - Competitive Fitness & Personalized Nutrition Platform
 
 ## Overview
-Simple, lightweight mobile diet tracker. Snap a photo of your food, get AI-estimated calories/fat/carbs, and log it against your daily target.
+CRACK is divided into two distinct tiers:
+1. **Free Tier (Competitive Dashboard):** A competitive fitness platform where users register their profile, view their BMI, and compete against others in Gym weightlifting (PRs, SBD total, relative strength) and Sports activities (running, cycling, steps, streaks).
+2. **Subscription Tier (Personalized Health & Guild Suite):** Unlocked via subscription. Gathers specific intake (Weight Decision, Food Type, Optional Medical Record) to deliver AI-powered Calorie Counter (camera scan + macros), Food & Recipe Suggestions, Personalization, Exercise routines, Family Challenges (Guilds), and Advanced Multi-Metric Rankings.
 
 ## Tech
 - **Frontend:** Expo Router (React Native), TypeScript
 - **Backend:** FastAPI + MongoDB (Motor)
-- **Auth:** JWT (email + password, bcrypt)
+- **Auth:** JWT (email + password, bcrypt) + unique @username
 - **AI:** Gemini 3 Flash via Emergent Universal LLM key
 - **Camera:** expo-camera + expo-image-manipulator
+- **Payments:** Razorpay Subscriptions (autopay)
 
-## Features
-1. **Auth** — Signup / Login (email + password, JWT persisted via SecureStore)
-2. **Onboarding** — Goal (Gain/Lose/Maintain) + weight (kg) + height (cm) + optional age/gender → Mifflin-St Jeor daily calorie target
-3. **Home** — Trial banner (X days left), Calorie progress ring, **total protein (g) pill under the ring**, deficit/on-track/overeaten status badge, today's meals list with **per-item protein displayed**, delete entries
-4. **Camera flow** — Scan food (in-app camera) OR pick from gallery → Gemini analysis → verdict (good/ok/bad) + macros → "Eating it" / "Not eating it"
-5. **Manual entry** — Food name + calories (lightweight fallback, always free)
-6. **Profile** — Update goal/weight/height (recalculates target), Manage subscription link, **Terms of Service + Privacy Policy links**, last 30-day track record
-7. **Subscription** — Auto-provisioned 21. -day free trial on signup. ₹57/month (paise: 5700) Razorpay autopay after trial with 12 cycles per subscription. AI camera analysis is gated when subscription expires (soft paywall — manual entry still works). Fully-implemented Razorpay flow: `POST /api/subscription/checkout` → hosted checkout page → `POST /api/subscription/callback` (HMAC-verified) → `POST /api/subscription/webhook` (raw-body HMAC verify, idempotent via event_id index). Trial remains active in the app until `trial_ends_at` passes, even after checkout begins.
-8. **Legal** — `/terms` (Terms of Service) and `/privacy` (Privacy Policy) screens, linked from Signup, Subscribe, and Profile.
+## Features & Architecture
 
-## Backend endpoints
-- Auth: `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/auth/me`
-- Profile: `PUT /api/profile`
-- Food: `POST /api/food/analyze` (requires active subscription/trial), `POST /api/food/log`, `GET /api/food/today`, `GET /api/food/history?days=30`, `DELETE /api/food/{id}`
-- Subscription: `GET /api/subscription/me`, `POST /api/subscription/checkout`, `GET /api/subscription/checkout-page?subscription_id=...` (HTML), `POST /api/subscription/callback` (form), `POST /api/subscription/webhook` (raw)
+### 1. Free Tier
+- **Auth & Profile:** Email, Name, Password, DOB, Age (calculated), Weight (kg), Height (cm), Gender, Unique @Username, Profile Photo.
+- **BMI Calculator:** Dynamic calculation ($\text{weight} / \text{height}^2$), category classification (Underweight, Normal, Overweight, Obese), and healthy range visualization.
+- **Competitive Dashboard (Leaderboard):**
+  - **Physical: Gym:** Bench Press, Squat, Deadlift, Overhead Press, SBD Total, Relative Strength ratio ($\text{Total} / \text{Bodyweight}$).
+  - **Sports & Cardio:** Running (distance/pace), Cycling, Swimming, Daily steps, Workout streaks.
+  - Global, weight-class, and gender-filtered leaderboards with podium rankings.
+
+### 2. Subscription Tier
+- **Subscription Intake:**
+  - **Weight Decision:** Fat loss / Muscle gain / Recomp / Maintenance + target weight & pace.
+  - **Food Type:** Vegetarian, Vegan, Eggetarian, Non-Veg, Keto, Jain, Halal, etc.
+  - **Medical Record (Optional):** Allergies (nuts, lactose, gluten), Conditions (diabetes, PCOS, thyroid), Physical injuries.
+- **Calorie Counter:** AI camera food scanning (Gemini Vision) + manual search & log + calorie & macro rings (protein, carbs, fat, fiber).
+- **Food & Recipe Suggestions:** AI meal recommendations tailored to remaining calories, dietary preferences, and allergy exclusions.
+- **Personalization:** Adaptive calorie/macro adjustments and metabolic pacing.
+- **Exercise:** Goal-matched workout routines with injury-aware exercise substitutions.
+- **Family Challenge (Guild):** Create or join private guilds, collaborate on group challenges (steps, workout streaks, diet compliance).
+- **Rank & All:** Guild leaderboards, multi-factor achievement badges, and seasonal league tiers.
+
+## Backend Endpoints Overview
+- **Auth:** `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/auth/me`
+- **Profile & BMI:** `PUT /api/profile`, `GET /api/profile/{username}`
+- **Competition & Leaderboard (Free):**
+  - `POST /api/compete/gym` (log/update 1RM lifts)
+  - `GET /api/compete/gym/leaderboard` (filter by lift, gender, weight class)
+  - `POST /api/compete/sports` (log run, cycling, steps)
+  - `GET /api/compete/sports/leaderboard`
+- **Subscription Intake & Gated Features (Subscription):**
+  - `PUT /api/subscription/intake` (weight decision, food type, medical record)
+  - `POST /api/food/analyze` (AI camera scanner, gated)
+  - `POST /api/food/log`, `GET /api/food/today`, `GET /api/food/history`, `DELETE /api/food/{id}`
+  - `GET /api/nutrition/recipes` (personalized meal suggestions)
+  - `GET /api/exercise/routines` (personalized workout routines)
+  - `GET /api/guild/me`, `POST /api/guild/create`, `POST /api/guild/join`, `GET /api/guild/leaderboard`
+- **Subscription Billing:** `GET /api/subscription/me`, `POST /api/subscription/checkout`, `GET /api/subscription/checkout-page`, `POST /api/subscription/callback`, `POST /api/subscription/webhook`
 
 ## Screens
-`/` splash → gate • `/login` • `/signup` • `/onboarding` • `/(tabs)` home + profile • `/camera` (with gallery button) • `/analyze` • `/manual` • `/subscribe` • `/terms` • `/privacy`
+- **Free:** `/` splash → gate • `/login` • `/signup` • `/(tabs)/leaderboard` • `/(tabs)/profile` • `/log-lift` • `/log-sport` • `/terms` • `/privacy`
+- **Subscription / Gated:** `/(tabs)/nutrition` • `/camera` • `/analyze` • `/manual` • `/recipes` • `/exercise` • `/(tabs)/guild` • `/subscribe` • `/subscription-intake`
+
 
 
 ## Security posture (post-audit)
