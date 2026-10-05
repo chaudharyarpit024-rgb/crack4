@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
-import { api } from "@/src/api";
+import { api, getToken } from "@/src/api";
 import { colors, spacing } from "@/src/theme";
 import { isNetworkError, isAuthError, isConnected } from "@/src/utils/network";
 
@@ -21,6 +21,12 @@ export default function Index() {
 
       // ── 2. Try the auth check ────────────────────────────────
       try {
+        const token = await getToken();
+        if (!token) {
+          // For the new or logged out users -> will redirect to login page
+          router.replace("/login");
+          return;
+        }
         const me = await api<any>("/auth/me");
         if (!me.goal || !me.weight_kg || !me.height_cm) {
           router.replace("/onboarding");

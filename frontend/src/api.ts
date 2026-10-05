@@ -32,7 +32,7 @@ const TOKEN_KEY = "crack.auth.token";
 // For persistence without XSS risk, migrate to HttpOnly cookies set server-side.
 let _webToken: string | null = null;
 
-async function getToken(): Promise<string | null> {
+export async function getToken(): Promise<string | null> {
   if (Platform.OS === "web") {
     return _webToken;
   }
