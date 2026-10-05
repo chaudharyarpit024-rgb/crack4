@@ -102,7 +102,7 @@ export default function Home() {
       } else if (e?.status && e.status >= 500) {
         router.replace("/server-error");
       } else {
-        router.replace("/login");
+        router.replace("/server-error");
       }
     } finally {
       setLoading(false);
@@ -127,7 +127,7 @@ export default function Home() {
       await api(`/food/${id}`, { method: "DELETE" });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       load();
-    } catch {}
+    } catch { }
   };
 
   if (loading) {

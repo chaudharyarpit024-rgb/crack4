@@ -17,7 +17,7 @@ Simple, lightweight mobile diet tracker. Snap a photo of your food, get AI-estim
 4. **Camera flow** — Scan food (in-app camera) OR pick from gallery → Gemini analysis → verdict (good/ok/bad) + macros → "Eating it" / "Not eating it"
 5. **Manual entry** — Food name + calories (lightweight fallback, always free)
 6. **Profile** — Update goal/weight/height (recalculates target), Manage subscription link, **Terms of Service + Privacy Policy links**, last 30-day track record
-7. **Subscription** — Auto-provisioned 10-day free trial on signup. ₹57/month (paise: 5700) Razorpay autopay after trial with 12 cycles per subscription. AI camera analysis is gated when subscription expires (soft paywall — manual entry still works). Fully-implemented Razorpay flow: `POST /api/subscription/checkout` → hosted checkout page → `POST /api/subscription/callback` (HMAC-verified) → `POST /api/subscription/webhook` (raw-body HMAC verify, idempotent via event_id index). Trial remains active in the app until `trial_ends_at` passes, even after checkout begins.
+7. **Subscription** — Auto-provisioned 21. -day free trial on signup. ₹57/month (paise: 5700) Razorpay autopay after trial with 12 cycles per subscription. AI camera analysis is gated when subscription expires (soft paywall — manual entry still works). Fully-implemented Razorpay flow: `POST /api/subscription/checkout` → hosted checkout page → `POST /api/subscription/callback` (HMAC-verified) → `POST /api/subscription/webhook` (raw-body HMAC verify, idempotent via event_id index). Trial remains active in the app until `trial_ends_at` passes, even after checkout begins.
 8. **Legal** — `/terms` (Terms of Service) and `/privacy` (Privacy Policy) screens, linked from Signup, Subscribe, and Profile.
 
 ## Backend endpoints
@@ -40,5 +40,5 @@ Simple, lightweight mobile diet tracker. Snap a photo of your food, get AI-estim
 ## Razorpay (LIVE keys configured)
 - `RAZORPAY_KEY_ID=rzp_test_TNKjZ4cPbJPYfp`
 - `RAZORPAY_KEY_SECRET` set in backend/.env
-- `RAZORPAY_PLAN_ID=plan_TNKpaaAmmoDt7u` (₹39/month, INR)
+- `RAZORPAY_PLAN_ID=plan_TNKpaaAmmoDt7u` (₹57/month, INR)
 - `RAZORPAY_WEBHOOK_SECRET` is now a strong random (real). Add a webhook in Razorpay Dashboard → Webhooks pointing to `https://nutrition-simple-7.preview.emergentagent.com/api/subscription/webhook` and paste the SAME value shown in `backend/.env` when creating the webhook so signatures verify.
