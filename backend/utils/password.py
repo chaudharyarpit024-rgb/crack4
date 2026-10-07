@@ -39,7 +39,7 @@ def validate_password(password: str, min_length: int = 8) -> dict:
     }
 
 
-    def generate_password(lengt: int = 12) -> str: 
+def generate_password( length: int = 12) -> str: 
 
         if length < 8: 
             raise ValueError("Password length must be at least 8 characters.")
@@ -55,7 +55,7 @@ def validate_password(password: str, min_length: int = 8) -> dict:
 
         # Step 2: Filling the remaining length with random characters from all allowed types.
         
-        password_chars += [secrets.choice(ALL_CHARS) for _ in range(len - 4)]
+        password_chars += [secrets.choice(ALL_CHARS) for _ in range(length - 4)]
 
         # Step 3: Shuffle them up so the required characters aren't always at the start.
         secrets.SystemRandom().shuffle(password_chars)
