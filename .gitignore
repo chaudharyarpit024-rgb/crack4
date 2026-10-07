@@ -88,3 +88,7 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# AI Agent memory & mentor guidelines
+AGENTS.md
+.agents/
