@@ -11,6 +11,8 @@ from .verification import (
     can_resend,
 )
 from .streak import compute_user_streak
+from .password import validate_password, generate_password
+from .bmi import calculateBMI
 
 __all__ = [
     "calorie_target",
@@ -26,5 +28,8 @@ __all__ = [
     "mark_and_check_jti",
     "can_resend",
     "compute_user_streak",
+    "validate_password",
+    "generate_password",
+    "calculateBMI"
 ]
 

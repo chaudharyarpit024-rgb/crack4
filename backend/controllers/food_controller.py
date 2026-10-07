@@ -41,9 +41,16 @@ async def analyze_food_image(body: AnalyzeBody) -> dict:
         session_id=f"food-{uuid.uuid4()}",
         system_message=system,
     ).with_model("gemini", "gemini-3.1-flash-lite")
+    
+    user_prompt = "Analyze this food photo. Return the JSON object only."
+    if body.user_hint and body.user_hint.strip():
+        user_prompt = (
+            f"Analyze this food photo. The user clarified that this food item is actually: "
+            f"'{body.user_hint.strip()}'. Use this clarification along with the visual portion "
+            f"in the image to estimate the accurate nutrition values. Return the JSON object only.")
 
     msg = UserMessage(
-        text="Analyze this food photo. Return the JSON object only.",
+        text=user_prompt,
         file_contents=[ImageContent(image_base64=img_b64)],
     )
     try:

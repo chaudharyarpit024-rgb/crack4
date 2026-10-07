@@ -34,6 +34,14 @@ class AnalyzeBody(BaseModel):
         max_length=8 * 1024 * 1024,
         pattern=r"^(?:data:image\/[a-zA-Z0-9\+\-\.]+;base64,)?[A-Za-z0-9+/=\s]+$",
     )
+    
+    user_hint: Optional[str] = Field(
+        default=None,
+        max_length=120,
+        pattern=r"^[\w\s\-\.,'\"&()%/+!#]+$",
+        description="Optional user hint to help identify the food",)
+    
+        
 
 
 class AiAnalyzeResult(BaseModel):

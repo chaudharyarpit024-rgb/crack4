@@ -51,45 +51,66 @@ export default function Analyze() {
   // When useAIEstimate is true the card collapses and the AI serving size is used directly.
   const [useAIEstimate, setUseAIEstimate] = useState(false);
 
-  useEffect(() => {
+  // Re-evaluation state
+  const [analyzing, setAnalyzing] = useState(false);
+  const [showCorrection, setShowCorrection] = useState(false);
+  const [correctionText, setCorrectionText] = useState("");
+  const [activeHint, setActiveHint] = useState("");
+
+  const runAnalysis = async (hint?: string) => {
     if (!b64) {
       setErr("No image");
+      setAnalyzing(false);
       return;
     }
-    (async () => {
-      try {
-        const r = await api<Analysis>("/food/analyze", {
-          method: "POST",
-          body: { image_base64: b64 },
-        });
-        setResult(r);
-        const baseG = r.serving_size_g || 150;
-        setWeightStr(String(Math.round(baseG)));
-        // Default to AI estimate mode — user can opt into custom amount.
-        setUseAIEstimate(true);
-      } catch (e: any) {
-        const msg: string = e.message || "Analysis failed";
-        const status: number | undefined = e.status ?? e.statusCode;
-        // 402 → subscription required or daily trial limit hit
-        if (status === 402 || msg.toLowerCase().includes("subscription") || msg.includes("402")) {
-          const reason = msg.toLowerCase().includes("daily") ? "trial-limit" : "trial-ended";
-          router.replace({ pathname: "/subscribe", params: { reason } });
-          return;
-        }
-        // 429 → paid monthly quota exhausted
-        if (status === 429 || msg.includes("429")) {
-          setErr("Monthly scan limit reached (500/500). Your quota resets on your next billing cycle.");
-          return;
-        }
-        // 413 → image too large (client-side guard should prevent this, but be safe)
-        if (status === 413 || msg.includes("413") || msg.toLowerCase().includes("too large")) {
-          setErr("Image is too large. Please try again — the camera will compress it automatically.");
-          return;
-        }
-        setErr(msg);
+    setAnalyzing(true);
+    setErr("");
+    if (hint) {
+      setActiveHint(hint);
+    }
+
+    try {
+      const r = await api<Analysis>("/food/analyze", {
+        method: "POST",
+        body: {
+          image_base64: b64,
+          ...(hint ? { user_hint: hint.trim() } : {}),
+        },
+      });
+      setResult(r);
+      const baseG = r.serving_size_g || 150;
+      setWeightStr(String(Math.round(baseG)));
+      setUseAIEstimate(true);
+      setShowCorrection(false);
+      setCorrectionText("");
+    } catch (e: any) {
+      const msg: string = e.message || "Analysis failed";
+      const status: number | undefined = e.status ?? e.statusCode;
+      if (status === 402 || msg.toLowerCase().includes("subscription") || msg.includes("402")) {
+        const reason = msg.toLowerCase().includes("daily") ? "trial-limit" : "trial-ended";
+        router.replace({ pathname: "/subscribe", params: { reason } });
+        return;
       }
-    })();
+      if (status === 429 || msg.includes("429")) {
+        setErr("Monthly scan limit reached (500/500). Your quota resets on your next billing cycle.");
+        return;
+      }
+      if (status === 413 || msg.includes("413") || msg.toLowerCase().includes("too large")) {
+        setErr("Image is too large. Please try again — the camera will compress it automatically.");
+        return;
+      }
+      setErr(msg);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  useEffect(() => {
+    runAnalysis();
   }, [b64]);
+
+
+
 
   // The AI's base serving size in grams (always in grams — the AI only knows grams).
   const baseGrams = result?.serving_size_g || 150;
@@ -101,9 +122,9 @@ export default function Analyze() {
 
   const ratio = baseGrams > 0 ? effectiveGrams / baseGrams : 1;
   const calcCalories = result ? Math.max(0, Math.round(result.calories * ratio)) : 0;
-  const calcFat      = result ? Math.max(0, Math.round(result.fat_g      * ratio * 10) / 10) : 0;
-  const calcCarbs    = result ? Math.max(0, Math.round(result.carbs_g    * ratio * 10) / 10) : 0;
-  const calcProtein  = result ? Math.max(0, Math.round(result.protein_g  * ratio * 10) / 10) : 0;
+  const calcFat = result ? Math.max(0, Math.round(result.fat_g * ratio * 10) / 10) : 0;
+  const calcCarbs = result ? Math.max(0, Math.round(result.carbs_g * ratio * 10) / 10) : 0;
+  const calcProtein = result ? Math.max(0, Math.round(result.protein_g * ratio * 10) / 10) : 0;
 
   const setQuickAmount = (val: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -161,10 +182,10 @@ export default function Analyze() {
     result?.verdict === "good" ? "Good to eat" : result?.verdict === "bad" ? "Better skip" : "Okay in moderation";
 
   // Quick-select chips relative to AI base serving
-  const half    = Math.round(baseGrams * 0.5);
-  const full    = Math.round(baseGrams);
+  const half = Math.round(baseGrams * 0.5);
+  const full = Math.round(baseGrams);
   const oneHalf = Math.round(baseGrams * 1.5);
-  const double  = Math.round(baseGrams * 2);
+  const double = Math.round(baseGrams * 2);
 
   return (
     <SafeAreaView style={styles.wrap} edges={["top"]}>
@@ -185,13 +206,18 @@ export default function Analyze() {
           />
         ) : null}
 
-        {!result && !err ? (
+        {analyzing ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.brand} size="large" />
-            <Text style={styles.loadingTxt}>Analyzing your food…</Text>
-            <Text style={styles.loadingSub}>Estimating calories, fat, and carbs</Text>
+            <Text style={styles.loadingTxt}>
+              {activeHint ? `Re-analyzing as "${activeHint}"…` : "Analyzing your food…"}
+            </Text>
+            <Text style={styles.loadingSub}>
+              {activeHint ? "Re-calculating calories and macros" : "Estimating calories, fat, and carbs"}
+            </Text>
           </View>
         ) : null}
+
 
         {err ? (
           <View style={styles.errBox}>
@@ -207,7 +233,7 @@ export default function Analyze() {
           </View>
         ) : null}
 
-        {result ? (
+        {result && !analyzing ? (
           <>
             {/* ── Result card ── */}
             <View style={styles.card}>
@@ -219,6 +245,50 @@ export default function Analyze() {
                 </View>
               </View>
               {result.reason ? <Text style={styles.reason}>{result.reason}</Text> : null}
+
+              {/* ── Correction section ── */}
+              <Pressable
+                testID="btn-toggle-correction"
+                onPress={() => setShowCorrection((v) => !v)}
+                style={styles.correctToggleBtn}
+              >
+                <Ionicons
+                  name={showCorrection ? "chevron-up" : "pencil-outline"}
+                  size={15}
+                  color={colors.brand}
+                />
+                <Text style={styles.correctToggleTxt}>
+                  {showCorrection ? "Cancel" : "Wrong item? Tell AI to re-analyze"}
+                </Text>
+              </Pressable>
+
+              {showCorrection && (
+                <View style={styles.correctionBox}>
+                  <Text style={styles.correctionLabel}>What food is in the photo?</Text>
+                  <View style={styles.correctionInputRow}>
+                    <TextInput
+                      style={styles.correctionInput}
+                      placeholder="e.g. Banana Shake, Almond Milk..."
+                      placeholderTextColor={colors.muted}
+                      value={correctionText}
+                      onChangeText={setCorrectionText}
+                      maxLength={120}
+                      autoCapitalize="words"
+                    />
+                    <Pressable
+                      style={[styles.reanalyzeBtn, !correctionText.trim() && styles.btnDisabled]}
+                      disabled={!correctionText.trim() || analyzing}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        runAnalysis(correctionText);
+                      }}
+                    >
+                      <Text style={styles.reanalyzeBtnTxt}>Re-analyze</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
 
               <View style={styles.calorieBig}>
                 <Text style={styles.calorieVal} testID="analysis-calories">{calcCalories}</Text>
@@ -312,9 +382,9 @@ export default function Analyze() {
                   <View style={styles.chipsRow}>
                     {[
                       { label: "½ Serving", val: half },
-                      { label: "1 Serving",  val: full },
-                      { label: "1.5×",       val: oneHalf },
-                      { label: "2×",         val: double },
+                      { label: "1 Serving", val: full },
+                      { label: "1.5×", val: oneHalf },
+                      { label: "2×", val: double },
                     ].map((chip) => {
                       const isSelected = !useAIEstimate && Math.round(currentAmount) === chip.val;
                       return (
@@ -552,4 +622,71 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   btnGhostTxt: { color: colors.muted, fontSize: 14, fontWeight: "600" },
+
+  // ── Correction section styles ──
+  correctToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: colors.brand + "18",
+    borderRadius: radius.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  correctToggleTxt: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.brand,
+  },
+  correctionBox: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  correctionLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.muted,
+    marginBottom: spacing.xs,
+  },
+  correctionInputRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  correctionInput: {
+    flex: 1,
+    height: 42,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    fontSize: 14,
+    color: colors.onSurface,
+  },
+  reanalyzeBtn: {
+    backgroundColor: colors.brand,
+    paddingHorizontal: 14,
+    height: 42,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reanalyzeBtnTxt: {
+    color: colors.onBrand,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  btnDisabled: {
+    opacity: 0.4,
+  },
+
 });
