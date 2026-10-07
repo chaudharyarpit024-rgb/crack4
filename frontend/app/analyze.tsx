@@ -246,48 +246,57 @@ export default function Analyze() {
               </View>
               {result.reason ? <Text style={styles.reason}>{result.reason}</Text> : null}
 
-              {/* ── Correction section ── */}
-              <Pressable
-                testID="btn-toggle-correction"
-                onPress={() => setShowCorrection((v) => !v)}
-                style={styles.correctToggleBtn}
-              >
-                <Ionicons
-                  name={showCorrection ? "chevron-up" : "pencil-outline"}
-                  size={15}
-                  color={colors.brand}
-                />
-                <Text style={styles.correctToggleTxt}>
-                  {showCorrection ? "Cancel" : "Wrong item? Tell AI to re-analyze"}
-                </Text>
-              </Pressable>
-
-              {showCorrection && (
-                <View style={styles.correctionBox}>
-                  <Text style={styles.correctionLabel}>What food is in the photo?</Text>
-                  <View style={styles.correctionInputRow}>
-                    <TextInput
-                      style={styles.correctionInput}
-                      placeholder="e.g. Banana Shake, Almond Milk..."
-                      placeholderTextColor={colors.muted}
-                      value={correctionText}
-                      onChangeText={setCorrectionText}
-                      maxLength={120}
-                      autoCapitalize="words"
-                    />
-                    <Pressable
-                      style={[styles.reanalyzeBtn, !correctionText.trim() && styles.btnDisabled]}
-                      disabled={!correctionText.trim() || analyzing}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        runAnalysis(correctionText);
-                      }}
-                    >
-                      <Text style={styles.reanalyzeBtnTxt}>Re-analyze</Text>
-                    </Pressable>
+              {/* ── Prominent AI Correction Card ── */}
+              <View style={styles.reanalyzeCard}>
+                <View style={styles.reanalyzeRow}>
+                  <View style={styles.reanalyzeIconWrap}>
+                    <Ionicons name="sparkles" size={20} color={colors.brand} />
                   </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.reanalyzeTitle}>Wrong Food Detected?</Text>
+                    <Text style={styles.reanalyzeSub}>
+                      Tell AI what is in the photo to re-calculate macros
+                    </Text>
+                  </View>
+                  <Pressable
+                    testID="btn-toggle-correction"
+                    onPress={() => setShowCorrection((v) => !v)}
+                    style={styles.reanalyzeActionBtn}
+                  >
+                    <Text style={styles.reanalyzeActionTxt}>
+                      {showCorrection ? "Close" : "Fix it!"}
+                    </Text>
+                  </Pressable>
                 </View>
-              )}
+
+                {showCorrection && (
+                  <View style={styles.reanalyzeExpand}>
+                    <Text style={styles.correctionLabel}>Enter the real food name:</Text>
+                    <View style={styles.correctionInputRow}>
+                      <TextInput
+                        style={styles.correctionInput}
+                        placeholder="e.g. Banana Shake, Almond Milk..."
+                        placeholderTextColor={colors.muted}
+                        value={correctionText}
+                        onChangeText={setCorrectionText}
+                        maxLength={120}
+                        autoCapitalize="words"
+                        autoFocus
+                      />
+                      <Pressable
+                        style={[styles.reanalyzeBtn, !correctionText.trim() && styles.btnDisabled]}
+                        disabled={!correctionText.trim() || analyzing}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          runAnalysis(correctionText);
+                        }}
+                      >
+                        <Text style={styles.reanalyzeBtnTxt}>Re-analyze</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+              </View>
 
 
               <View style={styles.calorieBig}>
@@ -624,31 +633,54 @@ const styles = StyleSheet.create({
   btnGhostTxt: { color: colors.muted, fontSize: 14, fontWeight: "600" },
 
   // ── Correction section styles ──
-  correctToggleBtn: {
+
+  reanalyzeCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.brand + "40",
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  reanalyzeRow: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    gap: spacing.sm,
+  },
+  reanalyzeIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.brand + "18",
-    borderRadius: radius.sm,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  correctToggleTxt: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.brand,
+  reanalyzeTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.onSurface,
   },
-  correctionBox: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
-    padding: spacing.sm,
-    backgroundColor: colors.surface,
+  reanalyzeSub: {
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  reanalyzeActionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.brand,
+  },
+  reanalyzeActionTxt: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.onBrand,
+  },
+  reanalyzeExpand: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   correctionLabel: {
     fontSize: 12,
@@ -663,30 +695,31 @@ const styles = StyleSheet.create({
   },
   correctionInput: {
     flex: 1,
-    height: 42,
-    backgroundColor: colors.surface,
+    height: 44,
+    backgroundColor: colors.surface2 || colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
     fontSize: 14,
     color: colors.onSurface,
   },
   reanalyzeBtn: {
     backgroundColor: colors.brand,
-    paddingHorizontal: 14,
-    height: 42,
-    borderRadius: radius.sm,
+    paddingHorizontal: 16,
+    height: 44,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
   reanalyzeBtnTxt: {
     color: colors.onBrand,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
   },
   btnDisabled: {
     opacity: 0.4,
   },
+
 
 });
