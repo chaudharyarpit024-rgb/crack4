@@ -192,8 +192,30 @@ export default function Home() {
 
         <StreakCard data={streak} />
 
-        <View style={styles.section}>
+        {/* ADD THIS RECIPES CARD RIGHT HERE */}
+        <Pressable
+          testID="recipes-card"
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/recipes");
+          }}
+          style={styles.recipeCard}
+        >
+          <View style={styles.recipeCardLeft}>
+            <View style={styles.recipeIconWrap}>
+              <Ionicons name="restaurant" size={20} color={colors.brand} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.recipeCardTitle}>AI Recipe Suggestions</Text>
+              <Text style={styles.recipeCardSub}>
+                Get meal ideas that fit your remaining calories
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.brand} />
+        </Pressable>
 
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>You ate today</Text>
           {items.length === 0 ? (
             <View style={styles.empty}>
@@ -420,4 +442,41 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
+  recipeCard: {
+    marginTop: spacing.md,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  recipeCardLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  recipeIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.brandSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recipeCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.onSurface,
+  },
+  recipeCardSub: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 2,
+  },
+
 });
