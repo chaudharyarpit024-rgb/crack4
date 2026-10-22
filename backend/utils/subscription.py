@@ -8,6 +8,8 @@ from config.settings import (
     RZP_LIVE,
     TRIAL_DAILY_MAX_REQUESTS,
     PAID_MONTHLY_MAX_REQUESTS,
+    TRIAL_DAILY_MAX_RECIPES,
+    PAID_MONTHLY_MAX_RECIPES,
     UNLIMITED_ACCESS_EMAILS,
     logger,
 )
@@ -280,8 +282,81 @@ async def reset_monthly_usage(user_id: str) -> None:
         {
             "$set": {
                 "monthly_requests_used": 0,
+                "monthly_recipes_used": 0,
                 "usage_cycle_start": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         },
     )
+
+# ---------------------------------------------------------------------------
+# Recipe Quota Helpers
+# ---------------------------------------------------------------------------
+
+async def try_consume_trial_recipe(user_id: str, limit: int = TRIAL_DAILY_MAX_RECIPES) -> Optional[dict]:
+    """Atomic daily recipe-quota consume for free trial users."""
+    today = _today_str()
+    return await db.subscriptions.find_one_and_update(
+        {
+            "user_id": user_id,
+            "$or": [
+                {"trial_recipes_date": {"$ne": today}},
+                {"trial_recipes_date": today, "trial_recipes_used": {"$lt": limit}},
+            ],
+        },
+        [
+            {
+                "$set": {
+                    "trial_recipes_used": {
+                        "$cond": [
+                            {"$ne": ["$trial_recipes_date", today]},
+                            1,
+                            {"$add": [{"$ifNull": ["$trial_recipes_used", 0]}, 1]},
+                        ]
+                    },
+                    "trial_recipes_date": today,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            }
+        ],
+        return_document=True,
+    )
+
+
+async def try_consume_paid_recipe(user_id: str, limit: int = PAID_MONTHLY_MAX_RECIPES) -> Optional[dict]:
+    """Atomic monthly recipe-quota consume for paid subscribers."""
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    return await db.subscriptions.find_one_and_update(
+        {
+            "user_id": user_id,
+            "status": {"$in": list(_PAID_ACTIVE_STATUSES)},
+            "$or": [
+                {"current_end": None},
+                {"current_end": {"$gt": now_ts}},
+            ],
+            "monthly_recipes_used": {"$lt": limit},
+        },
+        {
+            "$inc": {"monthly_recipes_used": 1},
+            "$set": {"updated_at": datetime.now(timezone.utc).isoformat()},
+        },
+        return_document=True,
+    )
+
+
+async def refund_trial_recipe(user_id: str) -> None:
+    """Refund a trial recipe request if AI generation failed."""
+    today = _today_str()
+    await db.subscriptions.update_one(
+        {"user_id": user_id, "trial_recipes_date": today, "trial_recipes_used": {"$gt": 0}},
+        {"$inc": {"trial_recipes_used": -1}},
+    )
+
+
+async def refund_paid_recipe(user_id: str) -> None:
+    """Refund a paid monthly recipe request if AI generation failed."""
+    await db.subscriptions.update_one(
+        {"user_id": user_id, "monthly_recipes_used": {"$gt": 0}},
+        {"$inc": {"monthly_recipes_used": -1}},
+    )
+    

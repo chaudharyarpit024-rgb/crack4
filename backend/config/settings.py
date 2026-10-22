@@ -54,7 +54,7 @@ if not PUBLIC_API_URL:
     )
 MOBILE_RETURN_URL = os.environ.get("MOBILE_RETURN_URL", "crack://razorpay-complete")
 SUB_AMOUNT_PAISE = int(os.environ.get("SUBSCRIPTION_AMOUNT_PAISE", 5700))
-TRIAL_DAYS = int(os.environ.get("SUBSCRIPTION_TRIAL_DAYS", 21))
+TRIAL_DAYS = int(os.environ.get("SUBSCRIPTION_TRIAL_DAYS", 7))
 RZP_LIVE = bool(RZP_KEY_ID) and not RZP_KEY_ID.endswith("placeholder")
 RZP_WEBHOOK_LIVE = bool(RZP_WEBHOOK_SECRET) and "placeholder" not in RZP_WEBHOOK_SECRET.lower()
 
@@ -119,6 +119,10 @@ ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_RAW.split(",") if o
 # Paid users: 500 AI scans per billing month. Resets on subscription.charged webhook.
 TRIAL_DAILY_MAX_REQUESTS = int(os.environ.get("TRIAL_DAILY_MAX_REQUESTS", "5"))
 PAID_MONTHLY_MAX_REQUESTS = int(os.environ.get("PAID_MONTHLY_MAX_REQUESTS", "500"))
+# Recipe suggestion quotas
+TRIAL_DAILY_MAX_RECIPES = int(os.environ.get("TRIAL_DAILY_MAX_RECIPES", "3"))
+PAID_MONTHLY_MAX_RECIPES = int(os.environ.get("PAID_MONTHLY_MAX_RECIPES", "100"))
+
 
 # Unlimited access emails: comma-separated list of emails with permanent unlimited AI scan quotas & active subscription
 UNLIMITED_ACCESS_EMAILS_RAW = os.environ.get("UNLIMITED_ACCESS_EMAILS", "")

@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
-from security.dependencies import require_active_subscription
+from security.dependencies import enforce_recipe_quota
 from controllers.nutrition_controller import get_recipe_suggestions
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ async def get_recipes(
         max_length=50,
         description="Optional diet preference override (e.g., vegetarian, vegan, high-protein)",
     ),
-    user: dict = Depends(require_active_subscription),
+    user: dict = Depends(enforce_recipe_quota),
 ):
     """
     Generate personalized meal recommendations based on today's remaining calories.

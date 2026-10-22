@@ -2,13 +2,20 @@ import logging
 from fastapi import HTTPException, Header, Depends, Request
 from typing import Optional
 from database.mongodb import db
-from config.settings import TRIAL_DAILY_MAX_REQUESTS, PAID_MONTHLY_MAX_REQUESTS
+from config.settings import (
+    TRIAL_DAILY_MAX_REQUESTS,
+    PAID_MONTHLY_MAX_REQUESTS,
+    TRIAL_DAILY_MAX_RECIPES,
+    PAID_MONTHLY_MAX_RECIPES,
+)
 from security.jwt import decode_token
 from utils.subscription import (
     ensure_trial,
     sub_public,
     try_consume_trial_request,
     try_consume_paid_request,
+    try_consume_trial_recipe,
+    try_consume_paid_recipe,
     is_unlimited_email,
 )
 
@@ -143,6 +150,59 @@ async def enforce_quota(
         raise HTTPException(
             status_code=402,
             detail="Free daily limit reached (5/5). Try again tomorrow or upgrade to Premium.",
+        )
+
+    return user
+
+
+async def enforce_recipe_quota(
+    request: Request,
+    user: dict = Depends(require_active_subscription),
+) -> dict:
+    """
+    Enforces recipe suggestion quotas:
+      • Free trial: 3 requests per calendar day (UTC)
+      • Paid subscribers: 100 requests per billing month
+      • Permanent VIP / Unlimited accounts: unrestricted
+    """
+    is_unlimited = getattr(request.state, "is_unlimited", False)
+    if not is_unlimited:
+        is_unlimited = await is_unlimited_email(user.get("email"))
+
+    if is_unlimited:
+        request.state.user_id = user["id"]
+        request.state.is_paid = True
+        request.state.is_unlimited = True
+        return user
+
+    sub = getattr(request.state, "sub", None)
+    pub = getattr(request.state, "sub_pub", None)
+    if sub is None or pub is None:
+        sub = await ensure_trial(user["id"])
+        pub = sub_public(sub)
+
+    is_paid = pub["paid_active"]
+    request.state.user_id = user["id"]
+    request.state.is_paid = is_paid
+
+    try:
+        if is_paid:
+            updated = await try_consume_paid_recipe(user["id"], PAID_MONTHLY_MAX_RECIPES)
+        else:
+            updated = await try_consume_trial_recipe(user["id"], TRIAL_DAILY_MAX_RECIPES)
+    except Exception:
+        logger.exception("Recipe quota check failed for user_id=%s", user["id"])
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable, try again")
+
+    if updated is None:
+        if is_paid:
+            raise HTTPException(
+                status_code=402,
+                detail="Monthly recipe suggestions quota exhausted (100/100). Resets on your next billing date.",
+            )
+        raise HTTPException(
+            status_code=402,
+            detail="Daily free trial recipe limit reached (3/3). Try again tomorrow or upgrade to Premium.",
         )
 
     return user
