@@ -35,7 +35,7 @@ from utils.verification import (
     decode_password_reset_token,
     mark_and_check_reset_jti,
 )
-
+from utils.password import validate_password, generate_password
 
 def mask_email(email: str) -> str:
     """Mask email to prevent writing raw PII to logs."""
@@ -118,43 +118,66 @@ async def _send_verification_email(user_id: str, email: str) -> bool:
 
 
 async def signup_user(body: SignupBody) -> dict:
+    
+    val = validate_password(body.password)
+    if not val["is_valid"]:
+        raise HTTPException(400, val["message"])
     """Register a new user and send a verification email. Does NOT issue a token.
 
     The user must click the link in the verification email before they can log in.
     """
     email = body.email.lower().strip()
-    if await db.users.find_one({"email": email}):
-        raise HTTPException(400, "Email already registered")
-    user_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-    doc = {
-        "id": user_id,
-        "email": email,
-        "password": hash_pw(body.password),
-        "name": body.name or email.split("@")[0],
-        "goal": None,
-        "weight_kg": None,
-        "height_cm": None,
-        "age": None,
-        "gender": None,
-        "daily_target": None,
-        "email_verified": False,
-        "created_at": now,
-    }
-    try:
-        await db.users.insert_one(doc)
-    except Exception:
-        logger.exception("Database error while creating user account for email %s", mask_email(email))
-        raise HTTPException(503, "Service temporarily unavailable. Please try again.")
-    # Provision trial so a returning verified user doesn't hit a cold-start.
-    await ensure_trial(user_id)
-    # Send verification email. Failures are logged but don't break signup — user can resend.
+    existing = await db.users.find_one({"email": email})
+
+    if existing:
+        # 1. If already verified by the real owner, protect it:
+        if existing.get("email_verified", False):
+            raise HTTPException(400, "Email already registered")
+
+                # 2. If NOT verified yet, check if their password matches:
+        if not verify_pw(body.password, existing.get("password", "")):
+            raise HTTPException(
+                400,
+                "An unverified account already exists with this email, but the password does not match. "
+                "Please log in or reset your password."
+            )
+
+        # Password matches! Reuse the user_id to resend the verification email
+        user_id = existing["id"]
+    else:
+        # 3. Brand new user -> insert into database
+        user_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        doc = {
+            "id": user_id,
+            "email": email,
+            "password": hash_pw(body.password),
+            "name": body.name or email.split("@")[0],
+            "goal": None,
+            "weight_kg": None,
+            "height_cm": None,
+            "age": None,
+            "gender": None,
+            "daily_target": None,
+            "email_verified": False,
+            "created_at": now,
+        }
+        try:
+            await db.users.insert_one(doc)
+        except Exception:
+            logger.exception("Database error while creating user account for email %s", mask_email(email))
+            raise HTTPException(503, "Service temporarily unavailable. Please try again.")
+        # Provision trial so a returning verified user doesn't hit a cold-start.
+        await ensure_trial(user_id)
+
+    # 4. Send verification email. Failures are logged but don't break signup — user can resend.
     try:
         sent = await _send_verification_email(user_id, email)
         if not sent:
             logger.warning("Initial signup verification email could not be sent to %s", mask_email(email))
     except Exception:
         logger.exception("Failed to send verification email to %s", mask_email(email))
+
     return {
         "ok": True,
         "message": "Check your email for a verification link.",
@@ -436,6 +459,9 @@ async def forgot_password(body: ForgotPasswordBody) -> dict:
 
 
 async def reset_password(body: ResetPasswordBody) -> dict:
+    val = validate_password(body.new_password)
+    if not val["is_valid"]:
+        raise HTTPException(400, val["message"])
     """Validate password reset token and update user's password.
 
     Replay-protected via unique `used_reset_jti` collection.
@@ -496,4 +522,8 @@ async def reset_password_web(token: str) -> HTMLResponse:
 async def get_me(user: dict) -> dict:
     """Return the profile info for the currently authenticated user."""
     return user
+
+async def suggest_password() -> dict:
+    """Generate a secure, random password for the client."""
+    return {"password": generate_password(12), "ok": True}
 

@@ -37,6 +37,9 @@ async def current_user(
     user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password": 0})
     if not user:
         raise HTTPException(401, "User not found")
+    
+    if not user.get("email_verified", False):
+        raise HTTPException(403, "Email not verified. Please verify your email to continue.")
 
     from security.rate_limiter import rate_limiter
     allowed, retry_after, headers = rate_limiter.check_user_rate_limit(user["id"])

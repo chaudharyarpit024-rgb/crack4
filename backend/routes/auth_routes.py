@@ -23,6 +23,7 @@ from controllers.auth_controller import (
     forgot_password,
     reset_password,
     reset_password_web,
+    suggest_password
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -71,7 +72,9 @@ async def handle_reset_password_web(
 ):
     return await reset_password_web(token)
 
-
+@router.get("/suggest-password", dependencies=[Depends(rate_limit_public)])
+async def handle_suggest_password():
+    return await suggest_password()
 
 
 @router.get("/me")

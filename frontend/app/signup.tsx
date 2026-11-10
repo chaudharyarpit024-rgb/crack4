@@ -13,7 +13,7 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing, radius } from "@/src/theme";
-import { api } from "@/src/api";
+import { api, clearToken } from "@/src/api";
 import { startVerificationCooldown } from "@/src/utils/verificationCooldown";
 
 export default function Signup() {
@@ -35,6 +35,7 @@ export default function Signup() {
     }
     setLoading(true);
     setErr("");
+    await clearToken();
     try {
       await api<{ ok: boolean; message: string; email: string }>("/auth/signup", {
         method: "POST",
@@ -45,15 +46,24 @@ export default function Signup() {
       router.replace({ pathname: "/check-email" as any, params: { email } });
     } catch (e: any) {
       if (e.status === 400) {
-        setErr("Email already registered. Try logging in instead.");
+        setErr(e.message || "Email already registered. Try logging in instead.");
       } else {
         setErr(e.message || "Signup failed");
       }
     } finally {
       setLoading(false);
     }
-  };
+  }; // <-- submit ends here!
 
+  const handleSuggestPassword = async () => {
+    try {
+      const res = await api<{ password: string }>("/auth/suggest-password", { auth: false });
+      setPassword(res.password);
+    } catch {
+      // Fallback: generates one locally if offline
+      setPassword("Crack@" + Math.random().toString(36).slice(-8) + "!");
+    }
+  };
   return (
     <SafeAreaView style={styles.wrap}>
       <KeyboardAvoidingView
@@ -87,7 +97,14 @@ export default function Signup() {
             value={email}
             onChangeText={setEmail}
           />
-          <Text style={styles.label}>Password</Text>
+          {/* Header row with Label on left, Suggest link on right */}
+          <View style={styles.passwordHeaderRow}>
+            <Text style={styles.label}>Password</Text>
+            <Pressable testID="signup-suggest-password" onPress={handleSuggestPassword}>
+              <Text style={styles.suggestLink}>Suggest strong password</Text>
+            </Pressable>
+          </View>
+
           <TextInput
             testID="signup-password-input"
             style={styles.input}
@@ -182,4 +199,15 @@ const styles = StyleSheet.create({
   },
   legalLink: { color: colors.brand, fontWeight: "700", textDecorationLine: "underline" },
   link: { textAlign: "center", color: colors.muted, fontSize: 14 },
+  passwordHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.md,
+  },
+  suggestLink: {
+    color: colors.brand,
+    fontSize: 13,
+    fontWeight: "700",
+  },
 });
