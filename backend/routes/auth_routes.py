@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query
-from models.auth import SignupBody, LoginBody
+from models.auth import SignupBody, LoginBody, CheckEmailBody
 from models.verification import (
     VerifyBody,
     ResendBody,
@@ -23,7 +23,8 @@ from controllers.auth_controller import (
     forgot_password,
     reset_password,
     reset_password_web,
-    suggest_password
+    suggest_password,
+    check_user_email,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -37,6 +38,11 @@ async def signup(body: SignupBody):
 @router.post("/login", dependencies=[Depends(rate_limit_auth(extract_email_from_body))])
 async def login(body: LoginBody):
     return await login_user(body)
+
+
+@router.post("/check-email", dependencies=[Depends(rate_limit_auth(extract_email_from_body))])
+async def check_email(body: CheckEmailBody):
+    return await check_user_email(body)
 
 
 @router.post("/verify", dependencies=[Depends(rate_limit_auth())])

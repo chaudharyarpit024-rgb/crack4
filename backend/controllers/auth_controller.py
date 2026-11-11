@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from config.settings import PUBLIC_API_URL, logger
 from database.mongodb import db
-from models.auth import SignupBody, LoginBody
+from models.auth import SignupBody, LoginBody, CheckEmailBody
 from models.verification import (
     VerifyBody,
     ResendBody,
@@ -526,4 +526,22 @@ async def get_me(user: dict) -> dict:
 async def suggest_password() -> dict:
     """Generate a secure, random password for the client."""
     return {"password": generate_password(12), "ok": True}
+
+
+async def check_user_email(body: CheckEmailBody) -> dict:
+    """Check if an email already exists in the database."""
+    email = body.email.lower().strip()
+    user = await db.users.find_one({"email": email}, {"_id": 0, "email": 1, "email_verified": 1, "name": 1})
+    if user:
+        return {
+            "exists": True,
+            "email": email,
+            "email_verified": user.get("email_verified", False),
+            "name": user.get("name") or "",
+        }
+    return {
+        "exists": False,
+        "email": email,
+    }
+
 

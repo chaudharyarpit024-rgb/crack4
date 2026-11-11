@@ -21,3 +21,10 @@ class LoginBody(BaseModel):
     email: EmailStr = Field(..., max_length=255)
     password: str = Field(..., min_length=1, max_length=128)
 
+
+class CheckEmailBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: EmailStr = Field(..., max_length=255)
+
+

@@ -25,7 +25,8 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
-    if (!email || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
       setErr("Enter email and password");
       return;
     }
@@ -39,13 +40,18 @@ export default function Signup() {
     try {
       await api<{ ok: boolean; message: string; email: string }>("/auth/signup", {
         method: "POST",
-        body: { email, password, name },
+        body: { email: cleanEmail, password, name: name.trim() || undefined },
         auth: false,
       });
-      await startVerificationCooldown(email, 60);
-      router.replace({ pathname: "/check-email" as any, params: { email } });
+      await startVerificationCooldown(cleanEmail, 60);
+      router.replace({ pathname: "/check-email" as any, params: { email: cleanEmail } });
     } catch (e: any) {
-      if (e.status === 400) {
+      if (e.status === 400 && (e.message?.toLowerCase().includes("already registered") || e.message?.toLowerCase().includes("already exists"))) {
+        setErr("Account already exists! Redirecting to login...");
+        setTimeout(() => {
+          router.replace("/login");
+        }, 1200);
+      } else if (e.status === 400) {
         setErr(e.message || "Email already registered. Try logging in instead.");
       } else {
         setErr(e.message || "Signup failed");
