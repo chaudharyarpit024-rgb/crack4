@@ -4,7 +4,7 @@ import string
 LOWER = string.ascii_lowercase
 UPPER = string.ascii_uppercase
 DIGITS = string.digits
-SPECIAL = "!@#$%^&*-_=+.,?~/"
+SPECIAL = "!@#$%^&*-_=+.,?~/<>"
 ALL_CHARS = LOWER + UPPER + DIGITS + SPECIAL
 
 
