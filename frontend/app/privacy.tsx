@@ -47,7 +47,7 @@ const SECTIONS: { h: string; b: string }[] = [
   },
   {
     h: "Contact",
-    b: "Privacy questions: privacy@crackapp.example.",
+    b: "Privacy questions: cracktrackit.to.support@gmail.com",
   },
 ];
 
