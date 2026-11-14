@@ -58,34 +58,19 @@ async def create_checkout_session(user: dict) -> dict:
 
     now = datetime.now(timezone.utc)
 
-    # Check if the user has an active, unexpired free trial
-    has_active_trial = False
-    trial_end_dt = None
-    if existing and existing.get("trial_ends_at"):
-        try:
-            parsed_trial_end = datetime.fromisoformat(existing["trial_ends_at"])
-            if parsed_trial_end > now:
-                has_active_trial = True
-                trial_end_dt = parsed_trial_end
-        except Exception:
-            pass
-
+    # If the user already has an active or authenticated paid subscription, reuse it.
+    # Otherwise, always create a fresh subscription so payment is charged immediately today.
     if existing and existing.get("razorpay_subscription_id"):
-        # If user already completed payment or mandate, return existing subscription
         if existing.get("status") in {"authenticated", "active"}:
             return {
                 "subscription_id": existing["razorpay_subscription_id"],
                 "key_id": RZP_KEY_ID,
                 "amount_paise": SUB_AMOUNT_PAISE,
             }
-        # If user still has an active trial, reuse existing "pending" / "created" subscription
-        if has_active_trial and existing.get("status") in {"pending", "created"}:
-            return {
-                "subscription_id": existing["razorpay_subscription_id"],
-                "key_id": RZP_KEY_ID,
-                "amount_paise": SUB_AMOUNT_PAISE,
-            }
 
+    # Option A: In-app free trial only.
+    # When a user goes to checkout, we do NOT pass 'start_at' in the future.
+    # Razorpay bills the full subscription amount (e.g. ₹57) immediately today.
     rzp_sub_payload: dict = {
         "plan_id": RZP_PLAN_ID,
         "quantity": 1,
@@ -93,11 +78,6 @@ async def create_checkout_session(user: dict) -> dict:
         "customer_notify": 1,
         "notes": {"user_id": user["id"]},
     }
-
-    # If the user still has remaining trial days, honor their remaining trial end date.
-    # If the trial has already expired or ended, do NOT set start_at — bill immediately today!
-    if has_active_trial and trial_end_dt:
-        rzp_sub_payload["start_at"] = int(trial_end_dt.timestamp())
 
     sub = await razorpay_req(
         "POST",
@@ -112,10 +92,6 @@ async def create_checkout_session(user: dict) -> dict:
             "status": sub.get("status", "created"),
             "updated_at": now.isoformat(),
         }
-        # Only set trial_ends_at if user has an active trial; never grant a new trial to an expired user!
-        if has_active_trial and trial_end_dt:
-            update_fields["trial_ends_at"] = trial_end_dt.isoformat()
-
         await db.subscriptions.update_one(
             {"user_id": user["id"]},
             {"$set": update_fields},
@@ -152,26 +128,8 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
 
     price_str = f"{SUB_AMOUNT_PAISE // 100}" if SUB_AMOUNT_PAISE % 100 == 0 else f"{SUB_AMOUNT_PAISE / 100:.2f}"
 
-    now = datetime.now(timezone.utc)
-    trial_active = False
-    days_left = 0
-    trial_ends_at = exists.get("trial_ends_at")
-    if trial_ends_at:
-        try:
-            end = datetime.fromisoformat(trial_ends_at)
-            if end > now:
-                trial_active = True
-                delta = end - now
-                days_left = max(0, delta.days + (1 if delta.seconds > 0 else 0))
-        except Exception:
-            pass
-
-    if trial_active and days_left > 0:
-        sub_line = f"{days_left} day{'s' if days_left != 1 else ''} free · billed after trial · UPI Autopay"
-        desc_line = f"Premium — {days_left}-day free trial, then Rs.{price_str}/month"
-    else:
-        sub_line = "Billed today · UPI Autopay"
-        desc_line = f"Premium — Rs.{price_str}/month"
+    sub_line = f"Billed today · ₹{price_str}/month · UPI Autopay"
+    desc_line = f"Premium — Rs.{price_str}/month"
 
     html = f"""<!doctype html>
 <html>
