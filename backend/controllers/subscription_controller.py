@@ -56,45 +56,69 @@ async def create_checkout_session(user: dict) -> dict:
         logger.exception("Database error checking existing subscription for user %s", user.get("id"))
         raise HTTPException(503, "Service temporarily unavailable. Please try again.")
 
-    if existing and existing.get("razorpay_subscription_id") and existing.get("status") in {
-        "authenticated",
-        "active",
-        "pending",
-        "created",
-    }:
-        return {
-            "subscription_id": existing["razorpay_subscription_id"],
-            "key_id": RZP_KEY_ID,
-            "amount_paise": SUB_AMOUNT_PAISE,
-        }
-
     now = datetime.now(timezone.utc)
-    trial_end = now + timedelta(days=TRIAL_DAYS)
+
+    # Check if the user has an active, unexpired free trial
+    has_active_trial = False
+    trial_end_dt = None
+    if existing and existing.get("trial_ends_at"):
+        try:
+            parsed_trial_end = datetime.fromisoformat(existing["trial_ends_at"])
+            if parsed_trial_end > now:
+                has_active_trial = True
+                trial_end_dt = parsed_trial_end
+        except Exception:
+            pass
+
+    if existing and existing.get("razorpay_subscription_id"):
+        # If user already completed payment or mandate, return existing subscription
+        if existing.get("status") in {"authenticated", "active"}:
+            return {
+                "subscription_id": existing["razorpay_subscription_id"],
+                "key_id": RZP_KEY_ID,
+                "amount_paise": SUB_AMOUNT_PAISE,
+            }
+        # If user still has an active trial, reuse existing "pending" / "created" subscription
+        if has_active_trial and existing.get("status") in {"pending", "created"}:
+            return {
+                "subscription_id": existing["razorpay_subscription_id"],
+                "key_id": RZP_KEY_ID,
+                "amount_paise": SUB_AMOUNT_PAISE,
+            }
+
+    rzp_sub_payload: dict = {
+        "plan_id": RZP_PLAN_ID,
+        "quantity": 1,
+        "total_count": 12,  # 12 monthly cycles; extend via renewals
+        "customer_notify": 1,
+        "notes": {"user_id": user["id"]},
+    }
+
+    # If the user still has remaining trial days, honor their remaining trial end date.
+    # If the trial has already expired or ended, do NOT set start_at — bill immediately today!
+    if has_active_trial and trial_end_dt:
+        rzp_sub_payload["start_at"] = int(trial_end_dt.timestamp())
+
     sub = await razorpay_req(
         "POST",
         "/v1/subscriptions",
-        json={
-            "plan_id": RZP_PLAN_ID,
-            "quantity": 1,
-            "total_count": 12,  # 12 monthly cycles; extend via renewals
-            "start_at": int(trial_end.timestamp()),
-            "customer_notify": 1,
-            "notes": {"user_id": user["id"]},
-        },
+        json=rzp_sub_payload,
     )
 
     try:
+        update_fields: dict = {
+            "razorpay_subscription_id": sub["id"],
+            "plan_id": sub["plan_id"],
+            "status": sub.get("status", "created"),
+            "updated_at": now.isoformat(),
+        }
+        # Only set trial_ends_at if user has an active trial; never grant a new trial to an expired user!
+        if has_active_trial and trial_end_dt:
+            update_fields["trial_ends_at"] = trial_end_dt.isoformat()
+
         await db.subscriptions.update_one(
             {"user_id": user["id"]},
-            {
-                "$set": {
-                    "razorpay_subscription_id": sub["id"],
-                    "plan_id": sub["plan_id"],
-                    "status": sub.get("status", "created"),
-                    "trial_ends_at": trial_end.isoformat(),
-                    "updated_at": now.isoformat(),
-                }
-            },
+            {"$set": update_fields},
             upsert=True,
         )
     except Exception:
@@ -114,7 +138,7 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
         raise HTTPException(400, "Invalid subscription id")
     # Verify subscription belongs to a real record; also protects against enumerating arbitrary ids.
     try:
-        exists = await db.subscriptions.find_one({"razorpay_subscription_id": subscription_id}, {"_id": 1})
+        exists = await db.subscriptions.find_one({"razorpay_subscription_id": subscription_id})
     except Exception:
         logger.exception("Database error checking subscription %s in checkout page", subscription_id)
         raise HTTPException(503, "Service temporarily unavailable. Please try again.")
@@ -127,6 +151,27 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
         return json.dumps(v).replace("</", "<\\/")
 
     price_str = f"{SUB_AMOUNT_PAISE // 100}" if SUB_AMOUNT_PAISE % 100 == 0 else f"{SUB_AMOUNT_PAISE / 100:.2f}"
+
+    now = datetime.now(timezone.utc)
+    trial_active = False
+    days_left = 0
+    trial_ends_at = exists.get("trial_ends_at")
+    if trial_ends_at:
+        try:
+            end = datetime.fromisoformat(trial_ends_at)
+            if end > now:
+                trial_active = True
+                delta = end - now
+                days_left = max(0, delta.days + (1 if delta.seconds > 0 else 0))
+        except Exception:
+            pass
+
+    if trial_active and days_left > 0:
+        sub_line = f"{days_left} day{'s' if days_left != 1 else ''} free · billed after trial · UPI Autopay"
+        desc_line = f"Premium — {days_left}-day free trial, then Rs.{price_str}/month"
+    else:
+        sub_line = "Billed today · UPI Autopay"
+        desc_line = f"Premium — Rs.{price_str}/month"
 
     html = f"""<!doctype html>
 <html>
@@ -149,7 +194,7 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
 <div class="brand">CRACK</div>
 <div class="tag">Premium</div>
 <div class="price">₹{price_str}<span style="font-size:16px;color:#6B7280;">/month</span></div>
-<div class="sub">{TRIAL_DAYS} days free · billed after trial · UPI Autopay</div>
+<div class="sub">{sub_line}</div>
 <button id="pay">Continue to payment</button>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
@@ -158,7 +203,7 @@ async def render_checkout_page(subscription_id: str) -> HTMLResponse:
       key: {js_str(RZP_KEY_ID)},
       subscription_id: {js_str(subscription_id)},
       name: 'CRACK',
-      description: {js_str(f'Premium — {TRIAL_DAYS}-day free trial, then Rs.{price_str}/month')},
+      description: {js_str(desc_line)},
       callback_url: {js_str((PUBLIC_API_URL or '') + '/api/subscription/callback')},
       theme: {{ color: '#E05D36' }}
     }};
