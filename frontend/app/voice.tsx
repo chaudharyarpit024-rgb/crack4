@@ -472,25 +472,3 @@ const styles = StyleSheet.create({
   retryText: { fontSize: 13, color: colors.muted, fontWeight: "600" },
 });
 
-
-
-// 1. When user taps the mic:
-await Audio.requestPermissionsAsync();
-await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-const recording = new Audio.Recording();
-await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-await recording.startAsync();
-
-// 2. When user taps Stop:
-await recording.stopAndUnloadAsync();
-const uri = recording.getURI();
-const base64Audio = await FileSystem.readAsStringAsync(uri, {
-  encoding: FileSystem.EncodingType.Base64,
-});
-
-// 3. Send real audio to Sarvam AI!
-await api("/food/voice-analyze", {
-  method: "POST",
-  body: { audio_base64: base64Audio, language_code: "hi-IN" },
-  auth: true,
-});
