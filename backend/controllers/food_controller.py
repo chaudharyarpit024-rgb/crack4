@@ -205,7 +205,25 @@ async def transcribe_with_sarvam(audio_bytes: bytes, language_code: str = "hi-IN
 
     url = "https://api.sarvam.ai/speech-to-text"
     headers = {"api-subscription-key": SARVAM_API_KEY}
-    files = {"file": ("audio_recording.wav", audio_bytes, "audio/wav")}
+
+    # Detect audio format from magic bytes so Sarvam gets the exact matching MIME type
+    filename = "audio_recording.m4a"
+    content_type = "audio/m4a"
+
+    if audio_bytes.startswith(b"RIFF"):
+        filename = "audio_recording.wav"
+        content_type = "audio/wav"
+    elif audio_bytes.startswith(b"ID3") or (len(audio_bytes) > 2 and audio_bytes[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2")):
+        filename = "audio_recording.mp3"
+        content_type = "audio/mpeg"
+    elif b"ftyp" in audio_bytes[:16]:
+        filename = "audio_recording.m4a"
+        content_type = "audio/m4a"
+    elif audio_bytes.startswith(b"OggS"):
+        filename = "audio_recording.ogg"
+        content_type = "audio/ogg"
+
+    files = {"file": (filename, audio_bytes, content_type)}
     data = {
         "model": "saaras:v1",
         "language_code": language_code or "hi-IN",

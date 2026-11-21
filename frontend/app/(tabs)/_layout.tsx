@@ -30,6 +30,20 @@ import { Tabs } from "expo-router";
           }}
         />
         <Tabs.Screen
+          name="recipes"
+          options={{
+            title: "Recipes",
+            tabBarIcon: ({ color, size }) => <Ionicons name="restaurant" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="family-box"
+          options={{
+            title: "Family Box",
+            tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="profile"
           options={{
             title: "Profile",
