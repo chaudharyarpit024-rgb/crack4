@@ -296,8 +296,8 @@ export default function Home() {
           }}
           style={styles.fabSecondary}
         >
-          <Ionicons name="create-outline" size={22} color={colors.brand} />
-          <Text style={styles.fabSecondaryTxt}>Manual</Text>
+          <Ionicons name="mic" size={20} color={colors.brand} />
+          <Text style={styles.fabSecondaryTxt}>Speak / Manual</Text>
         </Pressable>
         <Pressable
           testID="camera-fab"
