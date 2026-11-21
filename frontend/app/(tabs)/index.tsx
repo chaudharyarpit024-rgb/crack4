@@ -215,6 +215,31 @@ export default function Home() {
           <Ionicons name="chevron-forward" size={18} color={colors.brand} />
         </Pressable>
 
+                {/* Family Box & Leaderboard Card */}
+        <Pressable
+          testID="family-box-card"
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/family-box");
+          }}
+          style={[styles.recipeCard, { marginTop: spacing.sm }]}
+        >
+          <View style={styles.recipeCardLeft}>
+            <View style={[styles.recipeIconWrap, { backgroundColor: "#FEF3C7" }]}>
+              <Ionicons name="people" size={20} color="#D97706" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.recipeCardTitle}>Family Box & Leaderboard</Text>
+              <Text style={styles.recipeCardSub}>
+                Compete with family on daily nutrition & earn points
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.brand} />
+        </Pressable>
+
+
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>You ate today</Text>
           {items.length === 0 ? (
