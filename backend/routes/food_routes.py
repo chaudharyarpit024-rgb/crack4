@@ -1,11 +1,12 @@
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, Request
-from models.food import AnalyzeBody, FoodLogBody
+from models.food import AnalyzeBody, FoodLogBody, VoiceAnalyzeBody
 from security.dependencies import current_user, enforce_quota
 from utils.subscription import refund_trial_request, refund_paid_request
 from controllers.food_controller import (
     analyze_food_image,
+    analyze_voice_food,
     create_food_log,
     get_today_food_logs,
     get_food_history,
@@ -96,3 +97,30 @@ async def get_streak(
 ):
     return await get_user_streak(user, client_date=client_date, client_tz=timezone)
 
+@router.post("/voice-analyze")
+async def voice_analyze_food_endpoint(
+    body: VoiceAnalyzeBody,
+    request: Request,
+    user: dict = Depends(enforce_quota),
+):
+    """
+    Multilingual voice food analysis powered by Sarvam AI (Speech-to-Text)
+    and Indian nutrition estimation.
+    """
+    try:
+        return await analyze_voice_food(body)
+    except HTTPException as exc:
+        if exc.status_code == 502:
+            try:
+                is_unlimited = getattr(request.state, "is_unlimited", False)
+                if not is_unlimited:
+                    is_paid = getattr(request.state, "is_paid", False)
+                    user_id = getattr(request.state, "user_id", None)
+                    if user_id:
+                        if is_paid:
+                            await refund_paid_request(user_id)
+                        else:
+                            await refund_trial_request(user_id)
+            except Exception:
+                pass
+        raise

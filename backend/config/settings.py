@@ -20,6 +20,7 @@ DB_NAME = os.environ.get("DB_NAME", "crack")
 
 # LLM integration
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+SARVAM_API_KEY = os.environ.get("SARVAM_API_KEY", "")
 
 # JWT Auth settings
 JWT_SECRET = os.environ.get("JWT_SECRET", "")
@@ -132,5 +133,6 @@ UNLIMITED_ACCESS_EMAILS = {
 
 # Logger setup
 logger = logging.getLogger("crack")
+
 
 

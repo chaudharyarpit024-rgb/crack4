@@ -55,4 +55,22 @@ class AiAnalyzeResult(BaseModel):
     protein_g: float = Field(default=0.0, ge=0.0, le=1000.0)
     verdict: Literal["good", "bad", "ok"] = "ok"
     reason: str = Field(default="", max_length=500)
+    
+
+class VoiceAnalyzeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    audio_base64: Optional[str] = Field(
+        default=None,
+        description="Base64 encoded audio recording (wav, mp3, webm, m4a)",
+    )
+    text_input: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Spoken text in Hindi/Hinglish/English (if speech transcribed on-device or typed)",
+    )
+    language_code: Optional[str] = Field(
+        default="hi-IN",
+        description="Language code for Sarvam STT (e.g., hi-IN, en-IN, or unknown for auto-detect)",
+    )
 

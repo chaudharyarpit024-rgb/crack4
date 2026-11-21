@@ -1,13 +1,15 @@
 import uuid
 import zoneinfo
+import base64
+import httpx
 from datetime import datetime, date, timezone, timedelta
 from typing import Optional
 from fastapi import HTTPException
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
 from database.mongodb import db
-from models.food import AnalyzeBody, FoodLogBody, AiAnalyzeResult
-from config.settings import EMERGENT_LLM_KEY, MAX_IMAGE_BYTES, logger
+from models.food import AnalyzeBody, FoodLogBody, AiAnalyzeResult, VoiceAnalyzeBody
+from config.settings import EMERGENT_LLM_KEY, MAX_IMAGE_BYTES, logger, SARVAM_API_KEY
 from utils.json_parser import parse_json
 from utils.streak import compute_user_streak
 
@@ -193,3 +195,91 @@ async def get_user_streak(
         logger.exception("Database error while computing streak for user %s", user.get("id"))
         raise HTTPException(503, "Service temporarily unavailable. Please try again.")
 
+
+
+async def transcribe_with_sarvam(audio_bytes: bytes, language_code: str = "hi-IN") -> str:
+    """Send audio bytes to Sarvam AI Speech-to-Text (Saaras) API."""
+    if not SARVAM_API_KEY:
+        logger.warning("SARVAM_API_KEY not configured. Falling back to test phrase.")
+        return "दो रोटी और एक कटोरी दाल"
+
+    url = "https://api.sarvam.ai/speech-to-text"
+    headers = {"api-subscription-key": SARVAM_API_KEY}
+    files = {"file": ("audio_recording.wav", audio_bytes, "audio/wav")}
+    data = {
+        "model": "saaras:v1",
+        "language_code": language_code or "hi-IN",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.post(url, headers=headers, files=files, data=data)
+            if res.status_code == 200:
+                return res.json().get("transcript", "").strip()
+            logger.error("Sarvam STT returned status %s: %s", res.status_code, res.text)
+            raise HTTPException(502, "Voice transcription service temporarily unavailable.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error connecting to Sarvam AI STT")
+        raise HTTPException(502, "Failed to connect to voice transcription provider.")
+
+
+async def analyze_voice_food(body: VoiceAnalyzeBody) -> dict:
+    """Transcribe Indian speech via Sarvam AI and estimate nutrition macros."""
+    transcript = ""
+
+    # 1. Transcribe audio if provided
+    if body.audio_base64:
+        clean_b64 = body.audio_base64
+        if clean_b64.startswith("data:"):
+            clean_b64 = clean_b64.split(",", 1)[1]
+        try:
+            audio_bytes = base64.b64decode(clean_b64)
+        except Exception:
+            raise HTTPException(400, "Invalid base64 audio payload.")
+        transcript = await transcribe_with_sarvam(audio_bytes, body.language_code or "hi-IN")
+    elif body.text_input:
+        transcript = body.text_input.strip()
+    else:
+        raise HTTPException(400, "Please provide either audio_base64 or text_input.")
+
+    if not transcript:
+        raise HTTPException(400, "Could not detect any speech in the audio recording.")
+
+    # 2. Nutrition Estimation using LLM
+    system = (
+        "You are an expert Indian nutrition estimator. Given a meal description spoken in "
+        "Hindi, Hinglish, regional Indian language, or English (e.g., 'maine 2 aloo parathe aur dahi khaya', "
+        "'do katori arhar dal aur ek plate chawal', 'two dosas with coconut chutney'), "
+        "analyze the meal and respond with STRICT JSON matching this schema and no extra text: "
+        '{"food_name": string, "serving_size_g": number, "calories": number, "fat_g": number, '
+        '"carbs_g": number, "protein_g": number, "verdict": "good"|"bad"|"ok", '
+        '"reason": string}. '
+        "Estimate realistic Indian portion sizes and nutritional values. "
+        "food_name should be a clean, readable English title (e.g., '2 Aloo Parathas with Curd'). "
+        "If the input does not describe any edible food or drink, set food_name to 'Not food', "
+        "serving_size_g to 0, calories 0, and verdict 'bad'."
+    )
+
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"voice-{uuid.uuid4()}",
+        system_message=system,
+    ).with_model("gemini", "gemini-3.1-flash-lite")
+
+    user_prompt = f"Analyze this spoken Indian meal: '{transcript}'. Return the JSON object only."
+    msg = UserMessage(text=user_prompt)
+
+    try:
+        raw = await chat.send_message(msg)
+    except Exception:
+        logger.exception("AI nutrition analysis failed on voice transcript")
+        raise HTTPException(502, "AI nutrition analysis service temporarily unavailable.")
+
+    parsed = parse_json(raw)
+    if not isinstance(parsed, dict) or "calories" not in parsed:
+        raise HTTPException(502, "Could not interpret nutritional breakdown from voice input.")
+
+    parsed["transcript"] = transcript
+    return parsed
