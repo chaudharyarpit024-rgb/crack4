@@ -58,6 +58,7 @@ from controllers import (
     handle_subscription_callback,
     handle_subscription_webhook,
 )
+from routes.family_box_routes import router as family_box_router
 
 # Modern lifecycle manager: connects on startup, gracefully disconnects on shutdown
 @asynccontextmanager
@@ -134,6 +135,10 @@ async def add_rate_limit_headers_middleware(request, call_next):
 
 # Mount modular API router
 app.include_router(api_router)
+
+# Compatibility aliases: guarantees that NO phone or bundle EVER gets a 404:
+app.include_router(family_box_router)                     # handles /family-box/...
+app.include_router(family_box_router, prefix="/api/api")  # handles /api/api/family-box/...
 
 
 @app.get("/", dependencies=[Depends(rate_limit_public)])
