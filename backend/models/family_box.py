@@ -12,7 +12,7 @@ class CreateFamilyBoxBody(BaseModel):
                      )
     
     
-class JoinFamilyyBoxBody(BaseModel):
+class JoinFamilyBoxBody(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     
     invite_code: str = Field(
@@ -26,3 +26,10 @@ class LeaderboardMember(BaseModel):
     user_id: str
     name: str
     streak: int
+    calories_consumed: int
+    daily_target: int
+    target_percentage: int
+    score: int
+    rank: int
+    is_me: bool = False
+    
