@@ -289,18 +289,6 @@ export default function Home() {
       <View style={styles.fabWrap} pointerEvents="box-none">
         
         <Pressable
-          testID="voice-fab"
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push("/voice");
-          }}
-          style={styles.fabSecondary}
-        >
-          <Ionicons name="mic" size={22} color={colors.brand} />
-          <Text style={styles.fabSecondaryTxt}>Voice</Text>
-        </Pressable>
-
-        <Pressable
           testID="manual-fab"
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
