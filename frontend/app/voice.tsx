@@ -15,6 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { colors, spacing, radius } from "@/src/theme";
 import { api } from "@/src/api";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 
 interface VoiceResult {
   food_name: string;
@@ -36,8 +38,7 @@ export default function VoiceScreen() {
   const [typedText, setTypedText] = useState("");
   const [result, setResult] = useState<VoiceResult | null>(null);
 
-  const mediaRecorderRef = useRef<any>(null);
-  const audioChunksRef = useRef<any[]>([]);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   // 1. Send real audio soundwaves to Sarvam AI STT via backend
   const analyzeAudio = async (base64Audio: string) => {
@@ -94,55 +95,57 @@ export default function VoiceScreen() {
     }
   };
 
-  // 3. Real Audio Recording Stream (Web, Chrome, or Native MediaRecorder)
+  // 3. Real Audio Recording with expo-av (Native mobile & Web)
   const startRecording = async () => {
-    if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new (window as any).MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event: any) => {
-          if (event.data?.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = () => {
-          stream.getTracks().forEach((track: any) => track.stop());
-          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
-          const reader = new FileReader();
-          reader.readAsDataURL(audioBlob);
-          reader.onloadend = () => {
-            const raw = reader.result as string;
-            const b64 = raw.includes(",") ? raw.split(",")[1] : raw;
-            analyzeAudio(b64);
-          };
-        };
-
-        mediaRecorder.start();
-        setRecording(true);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      } catch (e) {
-        console.warn("Microphone access error:", e);
-        Alert.alert("Microphone Error", "Could not access microphone. Please type or use keyboard dictation.");
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Permission Needed", "Please grant microphone permission to record audio.");
+        return;
       }
-    } else {
-      // In native mobile app without standalone audio hardware drivers:
-      Alert.alert(
-        "Voice Input",
-        "Tap the text box below and use your phone keyboard's microphone 🎙️ to speak your meal in Hindi or English!",
-        [{ text: "OK" }]
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
+      recordingRef.current = recording;
+      setRecording(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (err: any) {
+      console.warn("Recording start error:", err);
+      Alert.alert("Recording Error", err.message || "Could not start audio recording.");
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && recording) {
-      mediaRecorderRef.current.stop();
+  const stopRecording = async () => {
+    try {
+      const rec = recordingRef.current;
+      if (!rec) return;
+
       setRecording(false);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await rec.stopAndUnloadAsync();
+
+      const uri = rec.getURI();
+      recordingRef.current = null;
+
+      if (!uri) {
+        Alert.alert("Error", "No audio recording captured.");
+        return;
+      }
+
+      const b64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      await analyzeAudio(b64);
+    } catch (err: any) {
+      console.warn("Recording stop error:", err);
+      Alert.alert("Error", err.message || "Failed to process audio recording.");
     }
   };
 
@@ -467,4 +470,27 @@ const styles = StyleSheet.create({
   logBtnText: { color: colors.onBrand, fontSize: 15, fontWeight: "700" },
   retryBtn: { alignItems: "center", paddingVertical: spacing.md, marginTop: spacing.xs },
   retryText: { fontSize: 13, color: colors.muted, fontWeight: "600" },
+});
+
+
+
+// 1. When user taps the mic:
+await Audio.requestPermissionsAsync();
+await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+const recording = new Audio.Recording();
+await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+await recording.startAsync();
+
+// 2. When user taps Stop:
+await recording.stopAndUnloadAsync();
+const uri = recording.getURI();
+const base64Audio = await FileSystem.readAsStringAsync(uri, {
+  encoding: FileSystem.EncodingType.Base64,
+});
+
+// 3. Send real audio to Sarvam AI!
+await api("/food/voice-analyze", {
+  method: "POST",
+  body: { audio_base64: base64Audio, language_code: "hi-IN" },
+  auth: true,
 });
