@@ -53,7 +53,7 @@ export default function FamilyBoxScreen() {
 
   const fetchBoxData = useCallback(async () => {
     try {
-      const res = await api("/api/family-box/my-box", { auth: true });
+      const res = await api("/family-box/my-box", { auth: true });
       setBox(res.box || null);
       setLeaderboard(res.leaderboard || []);
     } catch (err: any) {
@@ -83,7 +83,7 @@ export default function FamilyBoxScreen() {
     setSubmitting(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await api("/api/family-box/create", {
+      await api("/family-box/create", {
         method: "POST",
         body: { name: boxName.trim() },
         auth: true,
@@ -105,7 +105,7 @@ export default function FamilyBoxScreen() {
     setSubmitting(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await api("/api/family-box/join", {
+      await api("/family-box/join", {
         method: "POST",
         body: { invite_code: inviteCode.trim() },
         auth: true,
@@ -141,7 +141,7 @@ export default function FamilyBoxScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await api("/api/family-box/leave", { method: "POST", auth: true });
+              await api("/family-box/leave", { method: "POST", auth: true });
               await fetchBoxData();
             } catch (err: any) {
               Alert.alert("Error", err.message || "Could not leave box.");

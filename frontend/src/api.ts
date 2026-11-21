@@ -73,7 +73,8 @@ export async function api<T = any>(
 
   let res: Response;
   try {
-    res = await fetch(`${baseUrl}/api${path}`, {
+    const normalizedPath = path.startsWith("/api") ? path : `/api${path}`;
+    res = await fetch(`${baseUrl}${normalizedPath}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
