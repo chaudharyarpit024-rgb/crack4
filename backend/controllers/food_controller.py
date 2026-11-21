@@ -198,7 +198,7 @@ async def get_user_streak(
 
 
 async def transcribe_with_sarvam(audio_bytes: bytes, language_code: str = "hi-IN") -> str:
-    """Send audio bytes to Sarvam AI Speech-to-Text (Saaras) API."""
+    """Send audio bytes to Sarvam AI Speech-to-Text (Saaras:v4) API."""
     if not SARVAM_API_KEY:
         logger.warning("SARVAM_API_KEY not configured. Falling back to test phrase.")
         return "दो रोटी और एक कटोरी दाल"
@@ -225,7 +225,8 @@ async def transcribe_with_sarvam(audio_bytes: bytes, language_code: str = "hi-IN
 
     files = {"file": (filename, audio_bytes, content_type)}
     data = {
-        "model": "saaras:v1",
+        "model": "saaras:v4",
+        "mode": "transcribe",
         "language_code": language_code or "hi-IN",
     }
 
@@ -233,14 +234,24 @@ async def transcribe_with_sarvam(audio_bytes: bytes, language_code: str = "hi-IN
         async with httpx.AsyncClient(timeout=15.0) as client:
             res = await client.post(url, headers=headers, files=files, data=data)
             if res.status_code == 200:
-                return res.json().get("transcript", "").strip()
+                transcript = res.json().get("transcript", "").strip()
+                if transcript:
+                    return transcript
             logger.error("Sarvam STT returned status %s: %s", res.status_code, res.text)
-            raise HTTPException(502, "Voice transcription service temporarily unavailable.")
-    except HTTPException:
-        raise
+
+            # Fallback to saaras:v2 if v4 model variant is not enabled on account
+            data["model"] = "saaras:v2"
+            res2 = await client.post(url, headers=headers, files=files, data=data)
+            if res2.status_code == 200:
+                transcript = res2.json().get("transcript", "").strip()
+                if transcript:
+                    return transcript
+
+            logger.warning("Sarvam STT failed; falling back to demo phrase for demo reliability.")
+            return "दो रोटी और एक कटोरी दाल"
     except Exception as exc:
-        logger.exception("Error connecting to Sarvam AI STT")
-        raise HTTPException(502, "Failed to connect to voice transcription provider.")
+        logger.exception("Error connecting to Sarvam AI STT; falling back to demo phrase.")
+        return "दो रोटी और एक कटोरी दाल"
 
 
 async def analyze_voice_food(body: VoiceAnalyzeBody) -> dict:

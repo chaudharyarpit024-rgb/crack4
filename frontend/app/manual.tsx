@@ -24,6 +24,7 @@ export default function Manual() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [cal, setCal] = useState("");
+  const [mealText, setMealText] = useState("");
   const [macros, setMacros] = useState<{
     protein_g: number;
     carbs_g: number;
@@ -119,7 +120,40 @@ export default function Manual() {
     }
   };
 
-  // 2. Submit meal to log
+  // 2. Text description analysis (fallback for typing meals in Hindi/English)
+  const analyzeMealText = async () => {
+    if (!mealText.trim()) return;
+    setAnalyzing(true);
+    setErr("");
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const data = await api("/food/voice-analyze", {
+        method: "POST",
+        body: { text_input: mealText.trim(), language_code: "hi-IN" },
+        auth: true,
+      });
+
+      if (data.food_name && data.food_name !== "Not food") {
+        setName(data.food_name);
+        setCal(String(data.calories || 0));
+        setMacros({
+          protein_g: data.protein_g || 0,
+          carbs_g: data.carbs_g || 0,
+          fat_g: data.fat_g || 0,
+        });
+        setTranscript(mealText.trim());
+        setMealText("");
+      } else {
+        setErr("Could not detect food in text.");
+      }
+    } catch (e: any) {
+      setErr(e.message || "Failed to analyze meal.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // 3. Submit meal to log
   const submit = async () => {
     if (!name.trim() || !cal.trim()) {
       setErr("Enter food name and calories");
@@ -194,6 +228,27 @@ export default function Manual() {
               </View>
             )}
           </Pressable>
+
+          {/* Text Description Box */}
+          <View style={styles.textInputRow}>
+            <TextInput
+              style={styles.textInputFlex}
+              placeholder="Describe meal"
+              placeholderTextColor={colors.muted}
+              value={mealText}
+              onChangeText={setMealText}
+            />
+            <Pressable
+              onPress={analyzeMealText}
+              disabled={analyzing || !mealText.trim()}
+              style={[
+                styles.analyzeBtn,
+                (!mealText.trim() || analyzing) && { opacity: 0.5 },
+              ]}
+            >
+              <Text style={styles.analyzeBtnTxt}>Analyze</Text>
+            </Pressable>
+          </View>
 
           {transcript ? (
             <Text style={styles.transcript}>"{transcript}"</Text>
@@ -316,6 +371,34 @@ const styles = StyleSheet.create({
   },
   speakTxtActive: {
     color: colors.error,
+  },
+  textInputRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  textInputFlex: {
+    flex: 1,
+    backgroundColor: colors.surface2,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    fontSize: 14,
+    color: colors.onSurface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  analyzeBtn: {
+    backgroundColor: colors.brand,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  analyzeBtnTxt: {
+    color: colors.onBrand,
+    fontWeight: "700",
+    fontSize: 13,
   },
   analyzingTxt: {
     fontSize: 14,
