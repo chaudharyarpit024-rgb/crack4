@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -37,7 +36,37 @@ export default function VoiceScreen() {
   const [typedText, setTypedText] = useState("");
   const [result, setResult] = useState<VoiceResult | null>(null);
 
-  // Analyze voice or text input
+  const mediaRecorderRef = useRef<any>(null);
+  const audioChunksRef = useRef<any[]>([]);
+
+  // 1. Send real audio soundwaves to Sarvam AI STT via backend
+  const analyzeAudio = async (base64Audio: string) => {
+    setAnalyzing(true);
+    setResult(null);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const data = await api("/food/voice-analyze", {
+        method: "POST",
+        body: { audio_base64: base64Audio, language_code: "hi-IN" },
+        auth: true,
+      });
+
+      if (data.food_name === "Not food" || data.calories === 0) {
+        Alert.alert(
+          "No Food Detected",
+          "We could not detect any food in your speech. Please mention food or drinks (e.g. '2 roti aur moong dal')."
+        );
+      } else {
+        setResult(data);
+      }
+    } catch (err: any) {
+      Alert.alert("Sarvam AI Error", err.message || "Failed to transcribe audio.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // 2. Analyze typed/dictated text input
   const analyzeInput = async (spokenText: string) => {
     if (!spokenText.trim()) return;
     setAnalyzing(true);
@@ -65,56 +94,63 @@ export default function VoiceScreen() {
     }
   };
 
-  // Browser / Device Speech Recognition for Web & Native
-  const toggleListening = () => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  // 3. Real Audio Recording Stream (Web, Chrome, or Native MediaRecorder)
+  const startRecording = async () => {
+    if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new (window as any).MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
 
-      if (!SpeechRecognition) {
-        Alert.alert(
-          "Microphone Unavailable",
-          "Speech recognition is not supported in this browser. Please type your meal in the box below."
-        );
-        return;
-      }
+        mediaRecorder.ondataavailable = (event: any) => {
+          if (event.data?.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
 
-      const recognition = new SpeechRecognition();
-      recognition.lang = "hi-IN"; // Hindi / Hinglish recognition
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach((track: any) => track.stop());
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = () => {
+            const raw = reader.result as string;
+            const b64 = raw.includes(",") ? raw.split(",")[1] : raw;
+            analyzeAudio(b64);
+          };
+        };
 
-      recognition.onstart = () => {
+        mediaRecorder.start();
         setRecording(true);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      };
-
-      recognition.onresult = (event: any) => {
-        setRecording(false);
-        const transcript = event.results[0][0].transcript;
-        setTypedText(transcript);
-        analyzeInput(transcript);
-      };
-
-      recognition.onerror = (e: any) => {
-        setRecording(false);
-        console.warn("Speech error:", e);
-      };
-
-      recognition.onend = () => {
-        setRecording(false);
-      };
-
-      recognition.start();
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } catch (e) {
+        console.warn("Microphone access error:", e);
+        Alert.alert("Microphone Error", "Could not access microphone. Please type or use keyboard dictation.");
+      }
     } else {
-      // Mobile fallback simulation if offline
-      setRecording(true);
-      setTimeout(() => {
-        setRecording(false);
-        const sample = "2 roti ghee ke saath aur ek katori dal";
-        setTypedText(sample);
-        analyzeInput(sample);
-      }, 2000);
+      // In native mobile app without standalone audio hardware drivers:
+      Alert.alert(
+        "Voice Input",
+        "Tap the text box below and use your phone keyboard's microphone 🎙️ to speak your meal in Hindi or English!",
+        [{ text: "OK" }]
+      );
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && recording) {
+      mediaRecorderRef.current.stop();
+      setRecording(false);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const toggleListening = () => {
+    if (recording) {
+      stopRecording();
+    } else {
+      startRecording();
     }
   };
 
@@ -166,7 +202,7 @@ export default function VoiceScreen() {
             disabled={analyzing}
           >
             <Ionicons
-              name={recording ? "radio" : "mic"}
+              name={recording ? "stop" : "mic"}
               size={48}
               color={colors.onBrand}
             />
@@ -174,10 +210,10 @@ export default function VoiceScreen() {
 
           <Text style={styles.statusTitle}>
             {recording
-              ? "Listening... Speak now"
+              ? "Recording voice... Tap to Stop"
               : analyzing
               ? "Transcribing with Sarvam AI..."
-              : "Tap to speak in Hindi or English"}
+              : "Tap to record in Hindi or English"}
           </Text>
           <Text style={styles.statusSub}>
             Speak naturally: "Maine do aloo parathe dahi ke saath khaye"
@@ -187,7 +223,7 @@ export default function VoiceScreen() {
         {analyzing && (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={colors.brand} />
-            <Text style={styles.loadingTxt}>Estimating Indian calories & macros...</Text>
+            <Text style={styles.loadingTxt}>Sarvam AI is transcribing Indian audio & calculating macros...</Text>
           </View>
         )}
 
@@ -214,11 +250,11 @@ export default function VoiceScreen() {
               ))}
             </View>
 
-            {/* Manual text input fallback */}
+            {/* Manual text input / keyboard dictation */}
             <View style={styles.textInputWrap}>
               <TextInput
                 style={styles.input}
-                placeholder="Or type Hindi/English meal..."
+                placeholder="Or type/speak Hindi/English meal..."
                 placeholderTextColor={colors.muted}
                 value={typedText}
                 onChangeText={setTypedText}
@@ -361,7 +397,7 @@ const styles = StyleSheet.create({
   statusTitle: { fontSize: 18, fontWeight: "800", color: colors.onSurface, marginBottom: 4 },
   statusSub: { fontSize: 13, color: colors.muted, textAlign: "center", paddingHorizontal: spacing.lg },
   loadingWrap: { alignItems: "center", marginVertical: spacing.lg },
-  loadingTxt: { fontSize: 13, color: colors.muted, marginTop: spacing.sm },
+  loadingTxt: { fontSize: 13, color: colors.muted, marginTop: spacing.sm, textAlign: "center" },
   sampleSection: { width: "100%", marginTop: spacing.md },
   sampleLabel: { fontSize: 13, fontWeight: "600", color: colors.muted, marginBottom: spacing.sm },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: spacing.lg },

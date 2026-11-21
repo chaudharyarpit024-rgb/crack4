@@ -217,7 +217,7 @@ export default function FamilyBoxScreen() {
                 <Text style={styles.inputLabel}>Group Name</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g. Lodhi Family or Fitness Squad"
+                  placeholder="e.g. Fitness Family"
                   placeholderTextColor={colors.muted}
                   value={boxName}
                   onChangeText={setBoxName}
