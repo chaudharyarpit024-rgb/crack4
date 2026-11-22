@@ -30,9 +30,14 @@ try {
 let FileSystemModule: any = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  FileSystemModule = require("expo-file-system");
+  FileSystemModule = require("expo-file-system/legacy");
 } catch (e) {
-  FileSystemModule = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    FileSystemModule = require("expo-file-system");
+  } catch (err) {
+    FileSystemModule = null;
+  }
 }
 
 export default function Manual() {
@@ -174,10 +179,31 @@ export default function Manual() {
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-      } else if (FileSystemModule?.readAsStringAsync) {
-        b64 = await FileSystemModule.readAsStringAsync(uri, {
-          encoding: "base64" as any,
-        });
+      } else {
+        try {
+          if (FileSystemModule?.readAsStringAsync) {
+            b64 = await FileSystemModule.readAsStringAsync(uri, {
+              encoding: "base64" as any,
+            });
+          }
+        } catch (readErr) {
+          console.warn("readAsStringAsync fallback:", readErr);
+        }
+
+        if (!b64) {
+          // Universal fallback: fetch the file uri directly
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          b64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const raw = reader.result as string;
+              resolve(raw.includes(",") ? raw.split(",")[1] : raw);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
       }
 
       const data = await api("/food/voice-analyze", {
