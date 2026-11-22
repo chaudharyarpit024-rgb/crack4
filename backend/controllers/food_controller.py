@@ -222,6 +222,9 @@ async def transcribe_with_sarvam(audio_bytes: bytes, language_code: str = "hi-IN
     elif audio_bytes.startswith(b"OggS"):
         filename = "audio_recording.ogg"
         content_type = "audio/ogg"
+    elif audio_bytes.startswith(b"\x1a\x45\xdf\xa3"):
+        filename = "audio_recording.webm"
+        content_type = "audio/webm"
 
     files = {"file": (filename, audio_bytes, content_type)}
     data = {

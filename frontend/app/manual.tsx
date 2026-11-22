@@ -80,9 +80,25 @@ export default function Manual() {
       if (!uri) return;
 
       setAnalyzing(true);
-      const b64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      let b64 = "";
+
+      if (Platform.OS === "web") {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        b64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const raw = reader.result as string;
+            resolve(raw.includes(",") ? raw.split(",")[1] : raw);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        b64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: "base64" as any,
+        });
+      }
 
       const data = await api("/food/voice-analyze", {
         method: "POST",
