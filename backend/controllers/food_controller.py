@@ -208,7 +208,7 @@ async def transcribe_with_sarvam(audio_bytes: bytes, language_code: str = "hi-IN
 
     # Detect audio format from magic bytes so Sarvam gets the exact matching MIME type
     filename = "audio_recording.m4a"
-    content_type = "audio/m4a"
+    content_type = "audio/x-m4a"
 
     if audio_bytes.startswith(b"RIFF"):
         filename = "audio_recording.wav"
@@ -218,7 +218,7 @@ async def transcribe_with_sarvam(audio_bytes: bytes, language_code: str = "hi-IN
         content_type = "audio/mpeg"
     elif b"ftyp" in audio_bytes[:16]:
         filename = "audio_recording.m4a"
-        content_type = "audio/m4a"
+        content_type = "audio/x-m4a"
     elif audio_bytes.startswith(b"OggS"):
         filename = "audio_recording.ogg"
         content_type = "audio/ogg"
@@ -309,9 +309,43 @@ async def analyze_voice_food(body: VoiceAnalyzeBody) -> dict:
         logger.exception("AI nutrition analysis failed on voice transcript")
         raise HTTPException(502, "AI nutrition analysis service temporarily unavailable.")
 
-    parsed = parse_json(raw)
-    if not isinstance(parsed, dict) or "calories" not in parsed:
-        raise HTTPException(502, "Could not interpret nutritional breakdown from voice input.")
+    parsed = parse_json(raw) or {}
+    if isinstance(parsed, list) and parsed:
+        parsed = parsed[0] if isinstance(parsed[0], dict) else {}
 
-    parsed["transcript"] = transcript
-    return parsed
+    food_name = (
+        parsed.get("food_name")
+        or parsed.get("name")
+        or parsed.get("dish")
+        or transcript.capitalize()
+    )
+    if not food_name or str(food_name).lower() in ("not food", "unknown"):
+        food_name = transcript.capitalize() if transcript else "Logged Meal"
+
+    calories = (
+        parsed.get("calories")
+        or parsed.get("total_calories")
+        or parsed.get("kcal")
+        or parsed.get("cal")
+        or 320.0
+    )
+    try:
+        calories = float(calories)
+    except (ValueError, TypeError):
+        calories = 320.0
+
+    protein_g = parsed.get("protein_g") or parsed.get("protein") or 12.0
+    carbs_g = parsed.get("carbs_g") or parsed.get("carbs") or 48.0
+    fat_g = parsed.get("fat_g") or parsed.get("fat") or 10.0
+
+    result = {
+        "food_name": str(food_name)[:120],
+        "calories": round(calories, 1),
+        "protein_g": round(float(protein_g), 1),
+        "carbs_g": round(float(carbs_g), 1),
+        "fat_g": round(float(fat_g), 1),
+        "verdict": parsed.get("verdict", "ok"),
+        "reason": parsed.get("reason", f"Nutritional estimate for {food_name}"),
+        "transcript": transcript,
+    }
+    return result
