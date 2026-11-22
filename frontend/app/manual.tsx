@@ -350,65 +350,65 @@ export default function Manual() {
             <Text style={styles.transcript}>"{transcript}"</Text>
           ) : null}
 
-          {/* Section: Manual */}
-          <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Manual</Text>
-
-          <Text style={styles.label}>Food name</Text>
-          <TextInput
-            testID="manual-name-input"
-            style={styles.input}
-            placeholder="Food name"
-            placeholderTextColor={colors.muted}
-            value={name}
-            onChangeText={setName}
-          />
-
-          <Text style={styles.label}>Calories</Text>
-          <TextInput
-            testID="manual-cal-input"
-            style={styles.input}
-            placeholder="Calories"
-            placeholderTextColor={colors.muted}
-            keyboardType="numeric"
-            value={cal}
-            onChangeText={setCal}
-          />
-
-          {macros ? (
-            <View style={styles.macroRow}>
-              <View style={styles.macroPill}>
-                <Text style={styles.macroLabel}>Protein</Text>
-                <Text style={styles.macroVal}>{macros.protein_g}g</Text>
+          {/* Detected Meal Result Card */}
+          {name && cal ? (
+            <View style={styles.resultCard}>
+              <View style={styles.resultHeader}>
+                <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                  <Text style={styles.resultBadge}>AI ESTIMATE</Text>
+                  <Text style={styles.resultFoodName}>{name}</Text>
+                </View>
+                <View style={styles.resultCalBadge}>
+                  <Text style={styles.resultCalNumber}>{Math.round(parseFloat(cal))}</Text>
+                  <Text style={styles.resultCalUnit}>kcal</Text>
+                </View>
               </View>
-              <View style={styles.macroPill}>
-                <Text style={styles.macroLabel}>Carbs</Text>
-                <Text style={styles.macroVal}>{macros.carbs_g}g</Text>
-              </View>
-              <View style={styles.macroPill}>
-                <Text style={styles.macroLabel}>Fat</Text>
-                <Text style={styles.macroVal}>{macros.fat_g}g</Text>
-              </View>
+
+              {macros ? (
+                <View style={styles.macroRow}>
+                  <View style={styles.macroPill}>
+                    <Text style={styles.macroLabel}>Protein</Text>
+                    <Text style={styles.macroVal}>{macros.protein_g}g</Text>
+                  </View>
+                  <View style={styles.macroPill}>
+                    <Text style={styles.macroLabel}>Carbs</Text>
+                    <Text style={styles.macroVal}>{macros.carbs_g}g</Text>
+                  </View>
+                  <View style={styles.macroPill}>
+                    <Text style={styles.macroLabel}>Fat</Text>
+                    <Text style={styles.macroVal}>{macros.fat_g}g</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              <Pressable
+                testID="manual-save-btn"
+                onPress={submit}
+                disabled={saving}
+                style={({ pressed }) => [styles.btn, (pressed || saving) && { opacity: 0.85 }]}
+              >
+                {saving ? (
+                  <ActivityIndicator color={colors.onBrand} />
+                ) : (
+                  <Text style={styles.btnTxt}>Add to log</Text>
+                )}
+              </Pressable>
             </View>
-          ) : null}
+          ) : (
+            <View style={styles.helperCard}>
+              <Ionicons name="sparkles" size={24} color={colors.brand} />
+              <Text style={styles.helperTitle}>Hands-free AI Logging</Text>
+              <Text style={styles.helperSub}>
+                Tap Speak or describe your meal. AI calculates calories & macros automatically.
+              </Text>
+            </View>
+          )}
 
           {err ? (
             <Text style={styles.err} testID="manual-error">
               {err}
             </Text>
           ) : null}
-
-          <Pressable
-            testID="manual-save-btn"
-            onPress={submit}
-            disabled={saving}
-            style={({ pressed }) => [styles.btn, (pressed || saving) && { opacity: 0.85 }]}
-          >
-            {saving ? (
-              <ActivityIndicator color={colors.onBrand} />
-            ) : (
-              <Text style={styles.btnTxt}>Add to log</Text>
-            )}
-          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -506,6 +506,74 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginTop: spacing.xs,
     paddingHorizontal: spacing.xs,
+  },
+  resultCard: {
+    marginTop: spacing.xl,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  resultHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
+  },
+  resultBadge: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.brand,
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  resultFoodName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.onSurface,
+  },
+  resultCalBadge: {
+    backgroundColor: colors.brandSoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    alignItems: "center",
+    minWidth: 64,
+  },
+  resultCalNumber: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: colors.brand,
+  },
+  resultCalUnit: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.brand,
+    marginTop: -2,
+  },
+  helperCard: {
+    marginTop: spacing.xl,
+    padding: spacing.xl,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  helperTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.onSurface,
+    marginTop: spacing.sm,
+  },
+  helperSub: {
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: "center",
+    marginTop: 4,
+    lineHeight: 18,
   },
   label: {
     fontSize: 13,
