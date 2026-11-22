@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -37,11 +37,27 @@ export default function Manual() {
   const [err, setErr] = useState("");
 
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const maxTimerRef = useRef<any>(null);
+  const silenceStartRef = useRef<number | null>(null);
+  const isStoppingRef = useRef<boolean>(false);
 
-  // 1. Microphone recording powered by Sarvam AI
+  useEffect(() => {
+    return () => {
+      if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
+  // 1. Microphone recording powered by Sarvam AI with automatic stop
   const startRecording = async () => {
     try {
       setErr("");
+      isStoppingRef.current = false;
+      silenceStartRef.current = null;
+      if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
+
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
         Alert.alert("Permission", "Microphone access is required to speak.");
@@ -53,12 +69,38 @@ export default function Manual() {
         playsInSilentModeIOS: true,
       });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      const { recording } = await Audio.Recording.createAsync({
+        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        isMeteringEnabled: true,
+      });
+
+      // Silence detection: automatically stop recording when speech ends
+      recording.setOnRecordingStatusUpdate((status) => {
+        if (!status.isRecording || isStoppingRef.current) return;
+
+        // Start checking for silence after 1.5 seconds of initial speech
+        if (status.durationMillis > 1500) {
+          const level = status.metering ?? -160;
+          if (level < -42) {
+            if (!silenceStartRef.current) {
+              silenceStartRef.current = Date.now();
+            } else if (Date.now() - silenceStartRef.current >= 1200) {
+              stopRecording();
+            }
+          } else {
+            silenceStartRef.current = null;
+          }
+        }
+      });
+
       recordingRef.current = recording;
       setRecording(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // Max safety duration: auto-stop after 5 seconds
+      maxTimerRef.current = setTimeout(() => {
+        stopRecording();
+      }, 5000);
     } catch (e: any) {
       console.warn("Recording start error:", e);
       setErr(e.message || "Could not start microphone.");
@@ -66,9 +108,22 @@ export default function Manual() {
   };
 
   const stopRecording = async () => {
+    if (isStoppingRef.current) return;
+    isStoppingRef.current = true;
+
+    if (maxTimerRef.current) {
+      clearTimeout(maxTimerRef.current);
+      maxTimerRef.current = null;
+    }
+    silenceStartRef.current = null;
+
     try {
       const rec = recordingRef.current;
-      if (!rec) return;
+      if (!rec) {
+        setRecording(false);
+        isStoppingRef.current = false;
+        return;
+      }
 
       setRecording(false);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -234,12 +289,12 @@ export default function Manual() {
             ) : (
               <View style={styles.inlineRow}>
                 <Ionicons
-                  name={recording ? "stop-circle" : "mic"}
+                  name={recording ? "mic" : "mic-outline"}
                   size={24}
                   color={recording ? colors.error : colors.brand}
                 />
                 <Text style={[styles.speakTxt, recording && styles.speakTxtActive]}>
-                  {recording ? "Stop recording" : "Speak"}
+                  {recording ? "Listening... (auto-stops)" : "Speak"}
                 </Text>
               </View>
             )}
