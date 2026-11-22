@@ -17,8 +17,23 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { colors, spacing, radius } from "@/src/theme";
 import { api } from "@/src/api";
-import { Audio } from "expo-av";
-import * as FileSystem from "expo-file-system";
+// Safe dynamic resolution of native modules to prevent crashes on older APKs
+let AudioModule: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const av = require("expo-av");
+  AudioModule = av?.Audio || null;
+} catch (e) {
+  AudioModule = null;
+}
+
+let FileSystemModule: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  FileSystemModule = require("expo-file-system");
+} catch (e) {
+  FileSystemModule = null;
+}
 
 export default function Manual() {
   const router = useRouter();
@@ -36,7 +51,7 @@ export default function Manual() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingRef = useRef<any>(null);
   const maxTimerRef = useRef<any>(null);
   const silenceStartRef = useRef<number | null>(null);
   const isStoppingRef = useRef<boolean>(false);
@@ -44,7 +59,7 @@ export default function Manual() {
   useEffect(() => {
     return () => {
       if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-      if (recordingRef.current) {
+      if (recordingRef.current && AudioModule) {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
       }
     };
@@ -54,28 +69,38 @@ export default function Manual() {
   const startRecording = async () => {
     try {
       setErr("");
+      if (!AudioModule) {
+        Alert.alert(
+          "Voice Recording",
+          "Voice input is compiling in your Google Play update. In the meantime, you can use 'Describe meal' below or enter details manually!",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
       isStoppingRef.current = false;
       silenceStartRef.current = null;
       if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
 
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await AudioModule.requestPermissionsAsync();
       if (!perm.granted) {
         Alert.alert("Permission", "Microphone access is required to speak.");
         return;
       }
 
-      await Audio.setAudioModeAsync({
+      await AudioModule.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      const { recording } = await Audio.Recording.createAsync({
-        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+      const preset = AudioModule.RecordingOptionsPresets?.HIGH_QUALITY || {};
+      const { recording } = await AudioModule.Recording.createAsync({
+        ...preset,
         isMeteringEnabled: true,
       });
 
       // Silence detection: automatically stop recording when speech ends
-      recording.setOnRecordingStatusUpdate((status) => {
+      recording.setOnRecordingStatusUpdate((status: any) => {
         if (!status.isRecording || isStoppingRef.current) return;
 
         // Start checking for silence after 1.5 seconds of initial speech
@@ -149,8 +174,8 @@ export default function Manual() {
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-      } else {
-        b64 = await FileSystem.readAsStringAsync(uri, {
+      } else if (FileSystemModule?.readAsStringAsync) {
+        b64 = await FileSystemModule.readAsStringAsync(uri, {
           encoding: "base64" as any,
         });
       }
